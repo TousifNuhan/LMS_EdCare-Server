@@ -9,7 +9,6 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 
 const app = express();
-// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const SSLCommerzPayment = require('sslcommerz-lts');
 const port = process.env.PORT || 5001;
 
@@ -21,7 +20,7 @@ app.use(cors({
     "http://localhost:5173",
     "https://edcare-56e4b.web.app",
     "https://edcare-56e4b.firebaseapp.com",
-  ],   //production a dewar age eta change krte hbe
+  ],   
   credentials: true
 }))
 app.use(express.json());
@@ -47,8 +46,6 @@ async function run() {
   try {
     // await client.connect();
 
-
-    // Collection references inside the database context
     const db = client.db('EdCare');
     const classCollection = db.collection('classes');
     const reviewsCollection = db.collection('reviews');
@@ -130,79 +127,42 @@ async function run() {
       next();
     };
 
-    // ------------------------------------------------------------------
-    // 1. POST: Submit Teacher Application
-    // ------------------------------------------------------------------
-    // app.post('/teacher-applications', verifyToken, async (req, res) => {
-    //   const application = req.body;
-    //   const userEmail = application.email;
-
-    //   // Check if the user has already applied
-    //   const existingApplication = await teacherApplicationsCollection.findOne({ email: userEmail });
-    //   if (existingApplication) {
-    //     if (existingApplication.status === 'pending') {
-    //       return res.status(400).send({ message: 'You already have a pending application.' });
-    //     }
-    //     if (existingApplication.status === 'approved') {
-    //       return res.status(400).send({ message: 'You are already an approved teacher.' });
-    //     }
-    //   }
-
-    //   const newApplication = {
-    //     name: application.name,
-    //     email: application.email,
-    //     image: application.image,
-    //     resume: application.resume || '', // <-- ADDED: Captures the uploaded PDF URL
-    //     phone: application.phone || '',
-    //     portfolio: application.portfolio || '',
-    //     experience: application.experience,
-    //     category: application.category,
-    //     title: application.title,
-    //     bio: application.bio,
-    //     status: 'pending', // Default status: pending, approved, rejected
-    //     createdAt: new Date(),
-    //   };
-
-    //   const result = await teacherApplicationsCollection.insertOne(newApplication);
-    //   res.send(result);
-    // });
-
-   async function getPlatformFeePercentage() {
-  const setting = await settingsCollection.findOne({ key: 'platformFee' });
-  return setting?.value ?? 0.10;
-}
-
-   // GET: current platform fee
-app.get('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const platformFeePercentage = await getPlatformFeePercentage();
-    res.send({ platformFeePercentage });
-  } catch (error) {
-    res.status(500).send({ message: 'Failed to fetch platform fee', error: error.message });
-  }
-});
-
-// PATCH: update platform fee — only affects NEW sales going forward
-app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const { feePercentage } = req.body;
-    const numeric = Number(feePercentage);
-
-    if (isNaN(numeric) || numeric < 0 || numeric > 1) {
-      return res.status(400).send({ message: 'feePercentage must be between 0 and 1' });
+    async function getPlatformFeePercentage() {
+      const setting = await settingsCollection.findOne({ key: 'platformFee' });
+      return setting?.value ?? 0.10;
     }
 
-    await settingsCollection.updateOne(
-      { key: 'platformFee' },
-      { $set: { value: numeric, updatedAt: new Date() } },
-      { upsert: true }
-    );
+   
+    app.get('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const platformFeePercentage = await getPlatformFeePercentage();
+        res.send({ platformFeePercentage });
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to fetch platform fee', error: error.message });
+      }
+    });
 
-    res.send({ message: 'Platform fee updated successfully — this applies to new sales only, past sales keep their original rate.', platformFeePercentage: numeric });
-  } catch (error) {
-    res.status(500).send({ message: 'Failed to update platform fee', error: error.message });
-  }
-});
+    
+    app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const { feePercentage } = req.body;
+        const numeric = Number(feePercentage);
+
+        if (isNaN(numeric) || numeric < 0 || numeric > 1) {
+          return res.status(400).send({ message: 'feePercentage must be between 0 and 1' });
+        }
+
+        await settingsCollection.updateOne(
+          { key: 'platformFee' },
+          { $set: { value: numeric, updatedAt: new Date() } },
+          { upsert: true }
+        );
+
+        res.send({ message: 'Platform fee updated successfully — this applies to new sales only, past sales keep their original rate.', platformFeePercentage: numeric });
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to update platform fee', error: error.message });
+      }
+    });
 
     app.post('/teacher-applications', async (req, res) => {
       try {
@@ -222,13 +182,12 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
             return res.status(400).send({ message: 'You are already an approved teacher.' });
           }
 
-          // status === 'rejected' (or any other non-blocking state) — allow resubmission
+          
           if (existing.status === 'rejected') {
             const updatedApplication = {
               ...application,
               status: 'pending',
               createdAt: new Date(),
-              // clear any old rejection feedback so it doesn't linger on the new submission
               rejectionReason: '',
             };
 
@@ -241,7 +200,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
           }
         }
 
-        // No existing application at all — first-time submission
+        
         const result = await teacherApplicationsCollection.insertOne({
           ...application,
           status: 'pending',
@@ -270,33 +229,6 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       res.send({ status: application?.status || 'none', application });
     });
 
-
-
-
-    // last eta change krslm teacher application r
-    // app.patch('/teacher-applications/approve/:id', async (req, res) => {
-    //   const id = req.params.id;
-
-    //   // 1. Find the application first to get the applicant's email
-    //   const application = await teacherApplicationsCollection.findOne({ _id: new ObjectId(id) });
-    //   if (!application) {
-    //     return res.status(404).send({ message: 'Application not found' });
-    //   }
-
-    //   // 2. Update status in teacher applications collection
-    //   const updateAppResult = await teacherApplicationsCollection.updateOne(
-    //     { _id: new ObjectId(id) },
-    //     { $set: { status: 'approved' } }
-    //   );
-
-    //   // 3. Promote user role in users collection
-    //   const updateUserResult = await usersCollection.updateOne(
-    //     { email: application.email },
-    //     { $set: { role: 'teacher' } }
-    //   );
-
-    //   res.send({ updateAppResult, updateUserResult });
-    // });
     app.patch('/teacher-applications/approve/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
@@ -331,9 +263,6 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // ------------------------------------------------------------------
-    // 5. PATCH: Reject Teacher Application (Admin Only)
-    // ------------------------------------------------------------------
     app.patch('/teacher-applications/reject/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -346,59 +275,6 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       res.send(result);
     });
 
-    // GET single user by email (for dashboard role checking)
-    // app.get('/users/:email', verifyToken, async (req, res) => {
-    //   try {
-    //     const email = req.params.email;
-    //     if (email !== req.decoded.email) {
-    //       return res.status(403).send({ message: 'Forbidden Access' });
-    //     }
-    //     const query = { email: email };
-    //     const user = await usersCollection.findOne(query);
-    //     res.send(user || {});
-    //   } catch (err) {
-    //     res.status(500).send({ message: "Error fetching user details", error: err.message });
-    //   }
-    // });
-
-    // PATCH: Update profile (Name and Profile Image)
-    // app.patch('/users/:email', verifyToken, async (req, res) => {
-    //   try {
-    //     const email = req.params.email;
-
-    //     // Security Check: Ensure decoded JWT token matches requested email
-    //     if (email !== req.decoded.email) {
-    //       return res.status(403).send({ message: 'Forbidden Access' });
-    //     }
-
-    //     const { name, image } = req.body;
-    //     const filter = { email: email };
-
-    //     // Dynamically build update payload based on provided fields
-    //     const updatedDoc = {
-    //       $set: {
-    //         ...(name && { name }),
-    //         ...(image && { image }),
-    //         updatedAt: new Date()
-    //       }
-    //     };
-
-    //     const result = await usersCollection.updateOne(filter, updatedDoc);
-
-    //     if (result.matchedCount === 0) {
-    //       return res.status(404).send({ message: 'User not found' });
-    //     }
-
-    //     res.send({
-    //       success: true,
-    //       message: 'Profile updated successfully',
-    //       result
-    //     });
-    //   } catch (err) {
-    //     res.status(500).send({ message: "Error updating user details", error: err.message });
-    //   }
-    // });
-
     app.patch('/users/:email', verifyToken, async (req, res) => {
       try {
         const email = req.params.email;
@@ -407,13 +283,13 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
           return res.status(403).send({ message: 'Forbidden Access' });
         }
 
-        const { name, photoURL } = req.body; // Changed from image to photoURL
+        const { name, photoURL } = req.body; 
         const filter = { email: email };
 
         const updatedDoc = {
           $set: {
             ...(name && { name }),
-            ...(photoURL && { photoURL, image: photoURL }), // Updates both fields in MongoDB
+            ...(photoURL && { photoURL, image: photoURL }), 
             updatedAt: new Date()
           }
         };
@@ -426,11 +302,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
     });
 
 
-    // ==========================================
-    // USER ROUTES
-    // ==========================================
-
-    // GET: All Users
+    
     app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       // console.log(req.headers)
       try {
@@ -441,7 +313,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // POST: Create User (with initial role check)
+    
     app.post('/users', async (req, res) => {
       try {
         const user = req.body;
@@ -452,7 +324,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
           return res.send({ message: 'User already exists', insertedId: null });
         }
 
-        // Set default role to 'student' if not specified
+        
         const userDoc = {
           ...user,
           role: user.role || 'student',
@@ -466,7 +338,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // DELETE: Delete User by ID
+    
     app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
@@ -478,11 +350,11 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // PATCH: Dynamic Role Update (admin, teacher, student)
+   
     app.patch('/users/role/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
-        const { role } = req.body; // Expecting { role: 'admin' | 'teacher' | 'student' }
+        const { role } = req.body; 
 
         if (!role) {
           return res.status(400).send({ message: "Role is required" });
@@ -502,7 +374,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // Backward compatibility for /users/admin/:id
+    
     app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
@@ -516,10 +388,6 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
         res.status(500).send({ message: "Failed to update admin role", error: err.message });
       }
     });
-
-    // ==========================================
-    // CARTS ROUTES
-    // ==========================================
 
     app.get('/carts', async (req, res) => {
       const email = req.query.email;
@@ -541,16 +409,11 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       res.send(result);
     });
 
-    // ==========================================
-    // CLASSES & REVIEWS ROUTES
-    // ==========================================
-
-    // GET: All classes
+   
     app.get('/classes', async (req, res) => {
       try {
         const classes = await classCollection.find().toArray();
 
-        // Look up each teacher's status in one batched query, then stamp it onto each course
         const teacherEmails = [...new Set(classes.map(c => c.teacherEmail || c.email).filter(Boolean))];
         const teachers = await usersCollection
           .find({ email: { $in: teacherEmails } }, { projection: { email: 1, status: 1 } })
@@ -570,7 +433,6 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // GET: Teacher specific classes (Teacher/Admin Protected)
     app.get('/classes/teacher/:email', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const email = req.params.email;
@@ -585,74 +447,6 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // POST: Create Class (Teacher/Admin Protected)
-    // POST: Create Class (Teacher/Admin Protected)
-    // app.post('/classes', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
-    //   try {
-    //     const courseData = req.body;
-
-    //     // Direct validation for essential fields
-    //     if (!courseData.title || courseData.price === undefined) {
-    //       return res.status(400).send({ message: "Title and Price are required fields." });
-    //     }
-
-    //     const classItem = {
-    //       // Basic Info
-    //       title: courseData.title || "",
-    //       teacherId: courseData.teacherId || "",
-    //       teacherEmail: req.decoded?.email || courseData.email || "", // Enforce decoded email security
-    //       name: courseData.name || "",
-    //       email: courseData.email || "",
-    //       teacherImage: courseData.teacherImage || "",
-
-    //       // Pricing & Details
-    //       price: parseFloat(courseData.price) || 0,
-    //       originalPrice: parseFloat(courseData.originalPrice) || 0,
-    //       description: courseData.description || "",
-    //       shortDescription: courseData.shortDescription || "",
-    //       image: courseData.image || "",
-    //       previewVideoUrl: courseData.previewVideoUrl || "",
-
-    //       // Meta Specs
-    //       category: courseData.category || "Web Development",
-    //       duration: courseData.duration || "12 weeks",
-    //       language: courseData.language || "English",
-    //       skillLevel: courseData.skillLevel || "Advanced",
-    //       certificate: courseData.certificate || "Yes",
-
-    //       // Instructor Details
-    //       instructorDetails: {
-    //         title: courseData.instructorDetails?.title || "",
-    //         bio: courseData.instructorDetails?.bio || ""
-    //       },
-
-    //       // Nested Content Arrays
-    //       objectives: Array.isArray(courseData.objectives) ? courseData.objectives : [],
-    //       requirements: Array.isArray(courseData.requirements) ? courseData.requirements : [],
-    //       modules: Array.isArray(courseData.modules) ? courseData.modules : [],
-    //       assignments: Array.isArray(courseData.assignments) ? courseData.assignments : [],
-
-    //       // Admin & Analytics State
-    //       status: 'pending', // Default status for admin review
-    //       totalEnrollment: 0,
-    //       totalReviews: 0,
-    //       totalAssignments: courseData.assignments?.length || 0,
-    //       totalLessons: courseData.modules?.reduce((acc, mod) => acc + (mod.lessons?.length || 0), 0) || 0,
-    //       totalHours: parseFloat(courseData.totalHours) || 0,
-    //       rating: 0,
-
-    //       // Timestamps
-    //       createdAt: new Date(),
-    //       updatedAt: new Date()
-    //     };
-
-    //     const result = await classCollection.insertOne(classItem);
-    //     res.status(201).send(result);
-    //   } catch (err) {
-    //     res.status(500).send({ message: "Failed to create class", error: err.message });
-    //   }
-    // });
-
     app.post('/classes', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const courseData = req.body;
@@ -662,7 +456,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
         }
 
         const classItem = {
-          // ... all your existing fields stay exactly as they are ...
+          
           title: courseData.title || "",
           teacherId: courseData.teacherId || "",
           teacherEmail: req.decoded?.email || courseData.email || "",
@@ -698,8 +492,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
           createdAt: new Date(),
           updatedAt: new Date()
         };
-
-        // NEW: generate semantic embedding for AI-powered related-course recommendations
+        
         classItem.embedding = await generateCourseEmbedding(classItem);
 
         const result = await classCollection.insertOne(classItem);
@@ -714,7 +507,7 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
         const id = req.params.id;
         const { status, rejectionReason } = req.body;
 
-        // Validate MongoDB ObjectId
+        
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({ message: "Invalid Class ID" });
         }
@@ -728,7 +521,6 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
           }
         };
 
-        // FIXED: Changed classesCollection -> classCollection
         const result = await classCollection.updateOne(filter, updateDoc);
 
         if (result.matchedCount === 0) {
@@ -742,26 +534,12 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // app.get('/my-classes/:email', verifyToken, async (req, res) => {
-    //   const email = req.params.email;
 
-    //   // Search using $or in case your DB saved it under teacherEmail or email
-    //   const query = {
-    //     $or: [
-    //       { teacherEmail: email },
-    //       { email: email }
-    //     ]
-    //   };
-
-    //   const result = await classCollection.find(query).toArray();
-    //   res.send(result);
-    // });
-    // REPLACE your current GET /my-classes/:email with this:
+    
     app.get('/my-classes/:email', verifyToken, async (req, res) => {
       try {
         const email = req.params.email;
 
-        // Security Check: Verify requesting user matches token email
         if (email !== req.decoded?.email) {
           return res.status(403).send({ message: 'Forbidden Access' });
         }
@@ -780,49 +558,14 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // PATCH: Update existing Class by ID (Teacher/Admin Protected)
-    // app.patch('/classes/:id', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
-    //   try {
-    //     const id = req.params.id;
-    //     const requesterEmail = req.decoded.email;
-    //     const updateData = req.body;
-
-    //     const user = await usersCollection.findOne({ email: requesterEmail });
-    //     const targetClass = await classCollection.findOne({ _id: new ObjectId(id) });
-
-    //     if (!targetClass) {
-    //       return res.status(404).send({ message: "Class not found" });
-    //     }
-
-    //     // Admins can update any class; Teachers can only update their own
-    //     if (user.role !== 'admin' && targetClass.teacherEmail !== requesterEmail) {
-    //       return res.status(403).send({ message: "Forbidden: You can only edit your own classes" });
-    //     }
-
-    //     const updatedDoc = {
-    //       $set: {
-    //         ...updateData,
-    //         updatedAt: new Date()
-    //       }
-    //     };
-
-    //     const result = await classCollection.updateOne({ _id: new ObjectId(id) }, updatedDoc);
-    //     res.send(result);
-    //   } catch (err) {
-    //     res.status(500).send({ message: "Failed to update class", error: err.message });
-    //   }
-    // });
-    // REPLACE your current PATCH /classes/:id with this fixed version:
+    
     app.patch('/classes/:id', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const requesterEmail = req.decoded.email;
         const updateData = { ...req.body };
 
-        // Prevent Mongo immutable field error
         delete updateData._id;
-
-        // Prevent changing ownership fields
         delete updateData.email;
         delete updateData.teacherEmail;
 
@@ -837,20 +580,14 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
           return res.status(404).send({ message: "Class not found" });
         }
 
-        // Authorization Guard
         if (user.role !== 'admin' && targetClass.teacherEmail !== requesterEmail && targetClass.email !== requesterEmail) {
           return res.status(403).send({ message: "Forbidden: You can only edit your own classes" });
         }
 
-        // Recalculate metrics if modules/assignments arrays are updated
         if (updateData.modules) {
           updateData.totalLessons = updateData.modules.reduce((acc, mod) => acc + (mod.lessons?.length || 0), 0);
         }
-        // if (updateData.assignments) {
-        //   updateData.totalAssignments = updateData.assignments.length;
-        // }
-
-        // If any content-relevant field changed, regenerate the embedding to stay accurate
+        
         if (
           updateData.title ||
           updateData.description ||
@@ -876,56 +613,31 @@ app.patch('/admin/settings/platform-fee', verifyToken, verifyAdmin, async (req, 
       }
     });
 
-    // Attempts a real SSLCommerz refund. Throws on hard failure so callers can decide how to handle it.
-async function processSslcommerzRefund(payment, refundAmount, reason) {
-  if (!payment.bankTranId) {
-    // Payment predates bank_tran_id tracking, or came from a source without one — can't automate
-    throw new Error('No bank transaction ID on file for this payment. This payment must be refunded manually through the SSLCommerz merchant panel, then marked as refunded here.');
-  }
+    
+    async function processSslcommerzRefund(payment, refundAmount, reason) {
+      if (!payment.bankTranId) {
+        
+        throw new Error('No bank transaction ID on file for this payment. This payment must be refunded manually through the SSLCommerz merchant panel, then marked as refunded here.');
+      }
 
-  const refundResponse = await sslcz.initiateRefund({
-    refund_amount: refundAmount,
-    refund_remarks: (reason || 'Refund issued').slice(0, 255),
-    bank_tran_id: payment.bankTranId,
-    refe_id: payment.transactionId,
-  });
+      const refundResponse = await sslcz.initiateRefund({
+        refund_amount: refundAmount,
+        refund_remarks: (reason || 'Refund issued').slice(0, 255),
+        bank_tran_id: payment.bankTranId,
+        refe_id: payment.transactionId,
+      });
 
-  console.log('RAW REFUND RESPONSE:', JSON.stringify(refundResponse, null, 2));
-  
-  const status = String(refundResponse?.status || '').toLowerCase();
-  if (status !== 'success' && status !== 'processing') {
-    throw new Error(refundResponse?.errorReason || refundResponse?.reason || 'SSLCommerz rejected the refund request');
-  }
+      console.log('RAW REFUND RESPONSE:', JSON.stringify(refundResponse, null, 2));
 
-  return refundResponse;
-}
+      const status = String(refundResponse?.status || '').toLowerCase();
+      if (status !== 'success' && status !== 'processing') {
+        throw new Error(refundResponse?.errorReason || refundResponse?.reason || 'SSLCommerz rejected the refund request');
+      }
 
-    // DELETE: Remove Class (Teacher/Admin Protected)
-    // app.delete('/classes/:id', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
-    //   try {
-    //     const id = req.params.id;
-    //     const requesterEmail = req.decoded.email;
+      return refundResponse;
+    }
 
-    //     // Fetch the requesting user to check role
-    //     const user = await usersCollection.findOne({ email: requesterEmail });
-    //     const targetClass = await classCollection.findOne({ _id: new ObjectId(id) });
-
-    //     if (!targetClass) {
-    //       return res.status(404).send({ message: "Class not found" });
-    //     }
-
-    //     // Admins can delete anything; Teachers can only delete their own classes
-    //     if (user.role !== 'admin' && targetClass.teacherEmail !== requesterEmail) {
-    //       return res.status(403).send({ message: "Forbidden: You can only delete your own classes" });
-    //     }
-
-    //     const result = await classCollection.deleteOne({ _id: new ObjectId(id) });
-    //     res.send(result);
-    //   } catch (err) {
-    //     res.status(500).send({ message: "Failed to delete class", error: err.message });
-    //   }
-    // });
-    // REPLACE your current DELETE /classes/:id with this:
+    
     app.delete('/classes/:id', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const id = req.params.id;
@@ -942,7 +654,7 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           return res.status(404).send({ message: "Class not found" });
         }
 
-        // Check both potential email fields
+        
         const isOwner = targetClass.teacherEmail === requesterEmail || targetClass.email === requesterEmail;
 
         if (user.role !== 'admin' && !isOwner) {
@@ -956,13 +668,8 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // TeacherClassDetails
 
-    // ==========================================
-    // TEACHER CLASS DETAILS & ASSIGNMENTS ROUTES
-    // ==========================================
-
-    // GET: Class Progress Metrics
+    
     app.get('/classes/progress/:id', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const classId = req.params.id;
@@ -995,7 +702,8 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // GET: Assignments by Class ID
+  // assignments
+
     app.get('/assignments/class/:id', verifyToken, async (req, res) => {
       try {
         const classId = req.params.id;
@@ -1010,7 +718,7 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // POST: Create Assignment & Increment Count
+    
     app.post('/assignments', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const { classId, title, description, createdAt } = req.body;
@@ -1046,7 +754,7 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // PATCH: Update an assignment's title/description (Teacher/Admin, ownership-checked)
+    
     app.patch('/assignments/:id', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const { id } = req.params;
@@ -1065,7 +773,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           return res.status(404).send({ message: 'Assignment not found' });
         }
 
-        // Ownership check via the parent class
         if (!ObjectId.isValid(assignment.classId)) {
           return res.status(400).send({ message: 'Assignment has an invalid class reference' });
         }
@@ -1089,7 +796,7 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // DELETE: Remove an assignment and its submissions (Teacher/Admin, ownership-checked)
+    
     app.delete('/assignments/:id', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const { id } = req.params;
@@ -1115,11 +822,10 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           return res.status(403).send({ message: 'Forbidden: You can only delete assignments for your own classes' });
         }
 
-        // NEW: check submission impact before deleting anything
         const relatedSubmissions = await submissionsCollection.find({ assignmentId: id }).toArray();
         const gradedSubmissions = relatedSubmissions.filter(s => s.status === 'graded');
 
-        // Hard block: graded work exists — no override, protects certificate eligibility
+        
         if (gradedSubmissions.length > 0) {
           return res.status(422).send({
             blocked: true,
@@ -1128,7 +834,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           });
         }
 
-        // Soft warning: ungraded submissions exist — teacher can confirm and force it through
         if (relatedSubmissions.length > 0 && req.query.force !== 'true') {
           return res.status(409).send({
             requiresConfirmation: true,
@@ -1137,12 +842,10 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           });
         }
 
-        // Clean up dependent submissions so they don't become orphaned records
+        
         await submissionsCollection.deleteMany({ assignmentId: id });
-
         const result = await assignmentsCollection.deleteOne({ _id: new ObjectId(id) });
 
-        // Keep the class's assignment count accurate
         await classCollection.updateOne(
           { _id: new ObjectId(assignment.classId) },
           { $inc: { totalAssignments: -1 }, $set: { updatedAt: new Date() } }
@@ -1155,9 +858,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-
-    // GET: Dynamic stats aggregation endpoint
-    // GET: Dynamic stats aggregation endpoint
     app.get('/stats', async (req, res) => {
       try {
         const totalCourses = await classCollection.countDocuments({ status: "accepted" });
@@ -1193,82 +893,8 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // GET: Featured instructors with live course/enrollment counts
-    // GET: Featured instructors with live course/enrollment counts
+// reviews
 
-
-    // POST: Submit a review (enrolled students only, one review per course)
-    // app.post('/reviews', verifyToken, async (req, res) => {
-    //   try {
-    //     const { classId, rating, comment } = req.body;
-    //     const userEmail = req.decoded.email;
-
-    //     if (!classId || !rating) {
-    //       return res.status(400).send({ message: 'Class ID and rating are required' });
-    //     }
-    //     if (!ObjectId.isValid(classId)) {
-    //       return res.status(400).send({ message: 'Invalid Class ID' });
-    //     }
-
-    //     // Gate: must have a non-refunded payment covering this class
-    //     const payment = await paymentCollection.findOne({
-    //       userEmail,
-    //       status: { $ne: 'refunded' },
-    //       $or: [
-    //         { 'items.classId': classId },
-    //         { 'items._id': classId },
-    //         { classId: classId }
-    //       ]
-    //     });
-
-    //     if (!payment) {
-    //       return res.status(403).send({ message: 'You must be enrolled in this course to leave a review' });
-    //     }
-
-    //     // One review per user per course
-    //     const existingReview = await reviewsCollection.findOne({ classId, userEmail });
-    //     if (existingReview) {
-    //       return res.status(400).send({ message: 'You have already reviewed this course' });
-    //     }
-
-    //     const user = await usersCollection.findOne({ email: userEmail });
-
-    //     const reviewDoc = {
-    //       classId,
-    //       userEmail,
-    //       userName: user?.name || 'Student',
-    //       userImage: user?.photoURL || user?.image || '',
-    //       rating: Number(rating),
-    //       comment: (comment || '').trim(),
-    //       createdAt: new Date()
-    //     };
-
-    //     const result = await reviewsCollection.insertOne(reviewDoc);
-
-    //     // Recalculate this class's aggregate rating + review count
-    //     const allReviews = await reviewsCollection.find({ classId }).toArray();
-    //     const totalReviews = allReviews.length;
-    //     const avgRating = allReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalReviews;
-
-    //     if (ObjectId.isValid(classId)) {
-    //       await classCollection.updateOne(
-    //         { _id: new ObjectId(classId) },
-    //         { $set: { rating: Number(avgRating.toFixed(2)), totalReviews } }
-    //       );
-    //     }
-
-    //     res.status(201).send({
-    //       success: true,
-    //       insertedId: result.insertedId,
-    //       message: 'Review submitted successfully'
-    //     });
-    //   } catch (error) {
-    //     console.error('Error submitting review:', error);
-    //     res.status(500).send({ message: 'Failed to submit review' });
-    //   }
-    // });
-
-    // GET: Featured homepage testimonials — one per category, no repeated users, capped at 8
     app.get('/reviews/featured', async (req, res) => {
       try {
         const MAX_FEATURED = 8;
@@ -1304,8 +930,8 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           }
         };
 
-        tryPick(false); // strict pass: unique categories
-        if (picked.length < MAX_FEATURED) tryPick(true); // backfill pass: allow repeat categories
+        tryPick(false); 
+        if (picked.length < MAX_FEATURED) tryPick(true); 
 
         res.send(picked);
       } catch (error) {
@@ -1326,7 +952,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           return res.status(400).send({ message: 'Invalid Class ID' });
         }
 
-        // Gate: must have a non-refunded payment covering this class
         const payment = await paymentCollection.findOne({
           userEmail,
           status: { $ne: 'refunded' },
@@ -1341,7 +966,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
           return res.status(403).send({ message: 'You must be enrolled in this course to leave a review' });
         }
 
-        // One review per user per course
         const existingReview = await reviewsCollection.findOne({ classId, userEmail });
         if (existingReview) {
           return res.status(400).send({ message: 'You have already reviewed this course' });
@@ -1349,7 +973,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
 
         const user = await usersCollection.findOne({ email: userEmail });
 
-        // NEW: fetch the course so we can denormalize its title onto the review
         const courseDoc = await classCollection.findOne({ _id: new ObjectId(classId) });
 
         const reviewDoc = {
@@ -1365,7 +988,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
 
         const result = await reviewsCollection.insertOne(reviewDoc);
 
-        // Recalculate this class's aggregate rating + review count
         const allReviews = await reviewsCollection.find({ classId }).toArray();
         const totalReviews = allReviews.length;
         const avgRating = allReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalReviews;
@@ -1386,7 +1008,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // GET: Reviews for a specific class (public)
     app.get('/reviews/class/:classId', async (req, res) => {
       try {
         const classId = req.params.classId;
@@ -1400,7 +1021,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // GET: All reviews
     app.get('/reviews', async (req, res) => {
       try {
         const result = await reviewsCollection.find().toArray();
@@ -1410,134 +1030,8 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // POST: Create Payment Intent
-    // app.post('/create-payment-intent', verifyToken, async (req, res) => {
-    //   try {
-    //     const { price } = req.body;
-    //     const numericPrice = parseFloat(price);
+// payment
 
-    //     if (!price || isNaN(numericPrice) || numericPrice <= 0) {
-    //       return res.status(400).send({ error: 'Invalid or missing price amount' });
-    //     }
-
-    //     const amount = Math.round(numericPrice * 100);
-
-    //     const paymentIntent = await stripe.paymentIntents.create({
-    //       amount: amount,
-    //       currency: 'usd',
-    //       payment_method_types: ['card'],
-    //     });
-
-    //     res.send({ clientSecret: paymentIntent.client_secret });
-    //   } catch (error) {
-    //     console.error('Stripe Intent Error:', error.message);
-    //     res.status(500).send({ error: error.message });
-    //   }
-    // });
-
-    // POST: Record Payment, Bulk Enroll, & Clear Carts
-    // app.post('/payments', verifyToken, async (req, res) => {
-    //   try {
-    //     const payment = req.body;
-    //     const { cartIds, items, email, userName, name, transactionId, price } = payment;
-
-    //     if (email !== req.decoded?.email) {
-    //       return res.status(403).send({ message: 'Forbidden access: Email mismatch' });
-    //     }
-
-    //     if (!transactionId || !email) {
-    //       return res.status(400).send({ message: 'Missing transactionId or email' });
-    //     }
-
-    //     // NEW: Block enrollment if any purchased course's teacher is deactivated
-    //     if (Array.isArray(items) && items.length > 0) {
-    //       for (const item of items) {
-    //         const targetClassId = item.classId || item._id;
-    //         if (!targetClassId) continue;
-
-    //         const idConditions = [{ _id: targetClassId }];
-    //         if (ObjectId.isValid(targetClassId)) idConditions.push({ _id: new ObjectId(targetClassId) });
-
-    //         const courseDoc = await classCollection.findOne({ $or: idConditions });
-    //         if (!courseDoc) continue;
-
-    //         const teacherEmail = courseDoc.teacherEmail || courseDoc.email;
-    //         const teacherDoc = await usersCollection.findOne({ email: teacherEmail });
-
-    //         if (teacherDoc?.status === 'deactivated') {
-    //           return res.status(403).send({
-    //             message: `Enrollment is currently unavailable for "${courseDoc.title}" because the instructor's account is inactive.`
-    //           });
-    //         }
-    //       }
-    //     }
-
-    //     const studentName = userName || name || req.decoded?.name || 'Enrolled Student';
-
-    //     const paymentResult = await paymentCollection.insertOne({
-    //       userEmail: email,
-    //       userName: studentName,
-    //       transactionId,
-    //       price: parseFloat(price) || 0,
-    //       items: items || [],
-    //       cartIds: cartIds || [],
-    //       paidAt: new Date(),
-    //       status: 'completed'
-    //     });
-
-    //     const enrollmentDocs = [];
-    //     if (Array.isArray(items) && items.length > 0) {
-    //       for (const item of items) {
-    //         const targetClassId = item.classId || item._id;
-
-    //         if (targetClassId) {
-    //           enrollmentDocs.push({
-    //             classId: targetClassId,
-    //             userEmail: email,
-    //             userName: studentName,
-    //             enrolledAt: new Date(),
-    //             transactionId,
-    //           });
-
-    //           if (ObjectId.isValid(targetClassId)) {
-    //             await classCollection.updateOne(
-    //               { _id: new ObjectId(targetClassId) },
-    //               { $inc: { totalEnrollment: 1 } }
-    //             );
-    //           }
-    //         }
-    //       }
-    //     }
-
-    //     let enrollmentResult = null;
-    //     if (enrollmentDocs.length > 0) {
-    //       enrollmentResult = await enrollmentCollection.insertMany(enrollmentDocs);
-    //     }
-
-    //     let cartResult = null;
-    //     if (Array.isArray(cartIds) && cartIds.length > 0) {
-    //       const validCartObjectIds = cartIds
-    //         .filter((id) => ObjectId.isValid(id))
-    //         .map((id) => new ObjectId(id));
-
-    //       if (validCartObjectIds.length > 0) {
-    //         cartResult = await cartsCollection.deleteMany({
-    //           _id: { $in: validCartObjectIds },
-    //         });
-    //       }
-    //     }
-
-    //     res.send({ paymentResult, enrollmentResult, cartResult });
-    //   } catch (error) {
-    //     console.error('Payment processing error:', error);
-    //     res.status(500).send({
-    //       message: 'Failed to process payment record',
-    //       error: error.message,
-    //     });
-    //   }
-    // });
-
-    // POST: Initialize SSLCommerz payment session
     app.post('/payment/init', verifyToken, async (req, res) => {
       try {
         const { items, totalAmount, isDirectPurchase, cartIds, phone } = req.body;
@@ -1595,7 +1089,6 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
         const apiResponse = await sslcz.init(sslData);
 
         if (!apiResponse?.GatewayPageURL) {
-          // console.error('SSLCommerz init failed:', apiResponse);
           return res.status(502).send({ message: 'Failed to initialize payment gateway' });
         }
 
@@ -1606,27 +1099,26 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
-    // Shared logic: actually record the payment + create enrollments (called by success and ipn)
     async function finalizePendingPayment(tran_id, bankTranId = null) {
-       const pending = await pendingPaymentsCollection.findOne({ tran_id });
-  if (!pending) return { ok: false, reason: 'not_found' };
-  if (pending.status === 'completed') return { ok: true, alreadyProcessed: true };
+      const pending = await pendingPaymentsCollection.findOne({ tran_id });
+      if (!pending) return { ok: false, reason: 'not_found' };
+      if (pending.status === 'completed') return { ok: true, alreadyProcessed: true };
 
-  const { userEmail, userName, items, cartIds, totalAmount } = pending;
-  const platformFeePercentage = await getPlatformFeePercentage();
+      const { userEmail, userName, items, cartIds, totalAmount } = pending;
+      const platformFeePercentage = await getPlatformFeePercentage();
 
-  const paymentResult = await paymentCollection.insertOne({
-    userEmail,
-    userName,
-    transactionId: tran_id,
-    bankTranId: bankTranId || null,
-    price: totalAmount,
-    items: items || [],
-    cartIds: cartIds || [],
-    paidAt: new Date(),
-    status: 'completed',
-    platformFeePercentage
-  });
+      const paymentResult = await paymentCollection.insertOne({
+        userEmail,
+        userName,
+        transactionId: tran_id,
+        bankTranId: bankTranId || null,
+        price: totalAmount,
+        items: items || [],
+        cartIds: cartIds || [],
+        paidAt: new Date(),
+        status: 'completed',
+        platformFeePercentage
+      });
 
       const enrollmentDocs = [];
       for (const item of items) {
@@ -1668,27 +1160,26 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       return { ok: true, alreadyProcessed: false };
     }
 
-    // POST: SSLCommerz redirects the customer's browser here after successful payment
     app.post('/payment/success', async (req, res) => {
-  try {
-    const { tran_id, val_id, bank_tran_id } = req.body || {}; // NEW: capture bank_tran_id
-    if (!tran_id || !val_id) {
-      return res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=fail`);
-    }
+      try {
+        const { tran_id, val_id, bank_tran_id } = req.body || {}; 
+        if (!tran_id || !val_id) {
+          return res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=fail`);
+        }
 
-    const validation = await sslcz.validate({ val_id });
-    if (validation?.status !== 'VALID' && validation?.status !== 'VALIDATED') {
-      return res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=fail`);
-    }
+        const validation = await sslcz.validate({ val_id });
+        if (validation?.status !== 'VALID' && validation?.status !== 'VALIDATED') {
+          return res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=fail`);
+        }
 
-    await finalizePendingPayment(tran_id, validation?.bank_tran_id || bank_tran_id); // NEW
-    res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=success&tran_id=${tran_id}`);
-  } catch (error) {
-    res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=fail`);
-  }
-});
+        await finalizePendingPayment(tran_id, validation?.bank_tran_id || bank_tran_id); 
+        res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=success&tran_id=${tran_id}`);
+      } catch (error) {
+        res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=fail`);
+      }
+    });
 
-    // POST: SSLCommerz redirects here on failed payment
+    
     app.post('/payment/fail', async (req, res) => {
       const { tran_id } = req.body;
       if (tran_id) {
@@ -1697,7 +1188,7 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=fail`);
     });
 
-    // POST: SSLCommerz redirects here on cancelled payment
+    
     app.post('/payment/cancel', async (req, res) => {
       const { tran_id } = req.body;
       if (tran_id) {
@@ -1706,23 +1197,22 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       res.redirect(`${process.env.CLIENT_URL}/dashboard/payment-history?status=cancel`);
     });
 
-    // POST: server-to-server webhook — the reliable source of truth, independent of the customer's browser
     app.post('/payment/ipn', async (req, res) => {
-  try {
-    const { tran_id, val_id, bank_tran_id } = req.body; // NEW
-    if (!tran_id || !val_id) return res.status(400).send('Missing tran_id or val_id');
+      try {
+        const { tran_id, val_id, bank_tran_id } = req.body; 
+        if (!tran_id || !val_id) return res.status(400).send('Missing tran_id or val_id');
 
-    const validation = await sslcz.validate({ val_id });
-    if (validation?.status === 'VALID' || validation?.status === 'VALIDATED') {
-      await finalizePendingPayment(tran_id, validation?.bank_tran_id || bank_tran_id); // NEW
-    }
-    res.status(200).send('IPN received');
-  } catch (error) {
-    res.status(500).send('IPN processing failed');
-  }
-});
+        const validation = await sslcz.validate({ val_id });
+        if (validation?.status === 'VALID' || validation?.status === 'VALIDATED') {
+          await finalizePendingPayment(tran_id, validation?.bank_tran_id || bank_tran_id); // NEW
+        }
+        res.status(200).send('IPN received');
+      } catch (error) {
+        res.status(500).send('IPN processing failed');
+      }
+    });
 
-    // GET /payments/:email - Fetch payment history for a student
+    
     app.get('/payments/:email', verifyToken, async (req, res) => {
       try {
         const email = req.params.email;
@@ -1744,587 +1234,207 @@ async function processSslcommerzRefund(payment, refundAmount, reason) {
       }
     });
 
+// teacher earnings    
+    app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
+      try {
+        const email = req.params.email;
 
+        if (req.decoded?.email !== email) {
+          return res.status(403).send({ message: 'Forbidden access' });
+        }
 
-    // ==========================================
-    // 1. GET TEACHER EARNINGS & STRIPE STATUS
-    // ==========================================
-    // ==========================================
-    // 1. GET TEACHER EARNINGS & STRIPE STATUS
-    // ==========================================
-    // app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
-    //   try {
-    //     const email = req.params.email;
+        const teacherUser = await usersCollection.findOne({ email });
+        const hasPayoutMethod = Boolean(teacherUser?.payoutMethod?.number);
+        const payoutMethod = teacherUser?.payoutMethod || null;
 
-    //     if (req.decoded?.email !== email) {
-    //       return res.status(403).send({ message: 'Forbidden access' });
-    //     }
+        const classes = await classCollection.find({
+          $or: [{ teacherEmail: email }, { email: email }]
+        }).toArray();
 
-    //     // 1. Fetch Teacher Info & Stripe Status
-    //     const teacherUser = await usersCollection.findOne({ email });
-    //     const hasPayoutMethod = Boolean(teacherUser?.payoutMethod?.number);
-    //     const payoutMethod = teacherUser?.payoutMethod || null;
+        const classIds = classes.map(c => c._id.toString());
 
-    //     // 2. Fetch Teacher's Classes
-    //     const classes = await classCollection.find({
-    //       $or: [{ teacherEmail: email }, { email: email }]
-    //     }).toArray();
+        const payments = await paymentCollection.find({
+          status: { $in: ['completed', 'paid', 'Completed', 'Paid'] },
+          $or: [
+            { "items.classId": { $in: classIds } },
+            { "items._id": { $in: classIds } },
+            { classId: { $in: classIds } }
+          ]
+        }).toArray();
 
-    //     const classIds = classes.map(c => c._id.toString());
+        const courseSalesMap = {};
+        classes.forEach(c => {
+          const cId = c._id.toString();
+          courseSalesMap[cId] = {
+            _id: c._id,
+            title: c.title || c.className || c.courseName || 'Untitled Course',
+            price: Number(c.price || 0),
+            enrolled: 0,
+            grossSales: 0,
+            netRevenue: 0
+          };
+        });
 
-    //     // 3. Fetch Payments
-    //     const payments = await paymentCollection.find({
-    //       status: { $in: ['completed', 'paid', 'Completed', 'Paid'] },
-    //       $or: [
-    //         { "items.classId": { $in: classIds } },
-    //         { "items._id": { $in: classIds } },
-    //         { classId: { $in: classIds } }
-    //       ]
-    //     }).toArray();
+        
+        const REFUND_WINDOW_MINUTES = 5; 
+        const now = Date.now();
 
-    //     // Initialize map for per-class metrics
-    //     const courseSalesMap = {};
-    //     classes.forEach(c => {
-    //       const cId = c._id.toString();
-    //       courseSalesMap[cId] = {
-    //         _id: c._id,
-    //         title: c.title || c.className || c.courseName || 'Untitled Course',
-    //         price: Number(c.price || 0),
-    //         enrolled: 0,
-    //         grossSales: 0,
-    //         netRevenue: 0
-    //       };
-    //     });
+        let totalGross = 0;
+        let totalPlatformFee = 0;
+        let pendingGross = 0; 
+        let pendingPlatformFee = 0; 
 
-    //     let totalGross = 0;
+        const currentDefaultFee = await getPlatformFeePercentage();
 
-    //     // 4. Calculate Sales Breakdown safely
-    //     payments.forEach(payment => {
-    //       // Handle cart payments vs single item payments
-    //       if (Array.isArray(payment.items) && payment.items.length > 0) {
-    //         payment.items.forEach(item => {
-    //           const itemId = (item.classId || item._id)?.toString();
-    //           if (itemId && courseSalesMap[itemId]) {
-    //             const itemPrice = Number(item.price || 0);
-    //             courseSalesMap[itemId].grossSales += itemPrice;
-    //             courseSalesMap[itemId].enrolled += 1;
-    //             totalGross += itemPrice;
-    //           }
-    //         });
-    //       } else {
-    //         const cId = payment.classId?.toString();
-    //         if (cId && courseSalesMap[cId]) {
-    //           const amount = Number(payment.price || payment.amount || 0);
-    //           courseSalesMap[cId].grossSales += amount;
-    //           courseSalesMap[cId].enrolled += 1;
-    //           totalGross += amount;
-    //         }
-    //       }
-    //     });
+        payments.forEach(payment => {
+          const feeRate = typeof payment.platformFeePercentage === 'number'
+            ? payment.platformFeePercentage
+            : currentDefaultFee;
 
-    //     const PLATFORM_FEE_PERCENTAGE = 0.10;
-    //     const platformFee = totalGross * PLATFORM_FEE_PERCENTAGE;
-    //     const netEarningsTotal = totalGross - platformFee;
+          
+          const paidAt = new Date(payment.paidAt || payment.createdAt).getTime();
+          const minutesSincePurchase = (now - paidAt) / (1000 * 60);
+          const isWithinRefundWindow = minutesSincePurchase <= REFUND_WINDOW_MINUTES;
 
-    //     // Build per-course output array
-    //     const courses = Object.values(courseSalesMap).map(course => ({
-    //       ...course,
-    //       grossSales: Number(course.grossSales.toFixed(2)),
-    //       netRevenue: Number((course.grossSales * (1 - PLATFORM_FEE_PERCENTAGE)).toFixed(2))
-    //     }));
+          if (Array.isArray(payment.items) && payment.items.length > 0) {
+            payment.items.forEach(item => {
+              const itemId = (item.classId || item._id)?.toString();
+              if (itemId && courseSalesMap[itemId]) {
+                const itemPrice = Number(item.price || 0);
+                const itemNet = itemPrice * (1 - feeRate);
 
-    //     // 5. Query Payouts
-    //     const allPayouts = await payoutCollection
-    //       .find({ teacherEmail: email })
-    //       .sort({ createdAt: -1 })
-    //       .toArray();
+                courseSalesMap[itemId].grossSales += itemPrice;
+                courseSalesMap[itemId].netRevenue += itemNet;
+                courseSalesMap[itemId].enrolled += 1;
 
-    //     const completedPayouts = allPayouts.filter(p =>
-    //       ["Completed", "completed", "COMPLETED"].includes(p.status)
-    //     );
+                totalGross += itemPrice;
+                totalPlatformFee += itemPrice * feeRate;
 
-    //     const totalPaidOut = completedPayouts.reduce((acc, p) => acc + Number(p.amount || 0), 0);
-    //     const availableNetBalance = Math.max(0, netEarningsTotal - totalPaidOut);
+                if (isWithinRefundWindow) {
+                  pendingGross += itemPrice; 
+                  pendingPlatformFee += itemPrice * feeRate; 
+                }
+              }
+            });
+          } else {
+            const cId = payment.classId?.toString();
+            if (cId && courseSalesMap[cId]) {
+              const amount = Number(payment.price || payment.amount || 0);
+              const amountNet = amount * (1 - feeRate);
 
-    //     res.send({
-    //       hasPayoutMethod,
-    //       payoutMethod,
-    //       availableNetBalance: Number(availableNetBalance.toFixed(2)),
-    //       netEarningsTotal: Number(netEarningsTotal.toFixed(2)),
-    //       totalGross: Number(totalGross.toFixed(2)),
-    //       platformFee: Number(platformFee.toFixed(2)),
-    //       totalPaidOut: Number(totalPaidOut.toFixed(2)),
-    //       courses,
-    //       payouts: allPayouts
-    //     });
-    //   } catch (error) {
-    //     // console.error('Error calculating teacher earnings:', error);
-    //     res.status(500).send({ message: 'Error calculating teacher earnings' });
-    //   }
-    // });
-// app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
-//   try {
-//     const email = req.params.email;
+              courseSalesMap[cId].grossSales += amount;
+              courseSalesMap[cId].netRevenue += amountNet;
+              courseSalesMap[cId].enrolled += 1;
 
-//     if (req.decoded?.email !== email) {
-//       return res.status(403).send({ message: 'Forbidden access' });
-//     }
+              totalGross += amount;
+              totalPlatformFee += amount * feeRate;
 
-//     const teacherUser = await usersCollection.findOne({ email });
-//     const hasPayoutMethod = Boolean(teacherUser?.payoutMethod?.number);
-//     const payoutMethod = teacherUser?.payoutMethod || null;
-
-//     const classes = await classCollection.find({
-//       $or: [{ teacherEmail: email }, { email: email }]
-//     }).toArray();
-
-//     const classIds = classes.map(c => c._id.toString());
-
-//     const payments = await paymentCollection.find({
-//       status: { $in: ['completed', 'paid', 'Completed', 'Paid'] },
-//       $or: [
-//         { "items.classId": { $in: classIds } },
-//         { "items._id": { $in: classIds } },
-//         { classId: { $in: classIds } }
-//       ]
-//     }).toArray();
-
-//     const courseSalesMap = {};
-//     classes.forEach(c => {
-//       const cId = c._id.toString();
-//       courseSalesMap[cId] = {
-//         _id: c._id,
-//         title: c.title || c.className || c.courseName || 'Untitled Course',
-//         price: Number(c.price || 0),
-//         enrolled: 0,
-//         grossSales: 0,
-//         netRevenue: 0
-//       };
-//     });
-
-//     let totalGross = 0;
-//     let totalPlatformFee = 0; // NEW: accumulated using each payment's own locked-in rate
-
-//     const currentDefaultFee = await getPlatformFeePercentage(); // fallback for legacy records without a stored rate
-
-//     payments.forEach(payment => {
-//       // NEW: use the rate stored on the payment; fall back to current default for old records created before this feature existed
-//       const feeRate = typeof payment.platformFeePercentage === 'number'
-//         ? payment.platformFeePercentage
-//         : currentDefaultFee;
-
-//       if (Array.isArray(payment.items) && payment.items.length > 0) {
-//         payment.items.forEach(item => {
-//           const itemId = (item.classId || item._id)?.toString();
-//           if (itemId && courseSalesMap[itemId]) {
-//             const itemPrice = Number(item.price || 0);
-//             const itemNet = itemPrice * (1 - feeRate);
-
-//             courseSalesMap[itemId].grossSales += itemPrice;
-//             courseSalesMap[itemId].netRevenue += itemNet; // NEW: accumulate net per-item using its own rate
-//             courseSalesMap[itemId].enrolled += 1;
-
-//             totalGross += itemPrice;
-//             totalPlatformFee += itemPrice * feeRate;
-//           }
-//         });
-//       } else {
-//         const cId = payment.classId?.toString();
-//         if (cId && courseSalesMap[cId]) {
-//           const amount = Number(payment.price || payment.amount || 0);
-//           const amountNet = amount * (1 - feeRate);
-
-//           courseSalesMap[cId].grossSales += amount;
-//           courseSalesMap[cId].netRevenue += amountNet;
-//           courseSalesMap[cId].enrolled += 1;
-
-//           totalGross += amount;
-//           totalPlatformFee += amount * feeRate;
-//         }
-//       }
-//     });
-
-//     const platformFee = totalPlatformFee;
-//     const netEarningsTotal = totalGross - platformFee;
-
-//     // NEW: courses array now uses the accumulated netRevenue directly (no single flat rate applied at the end)
-//     const courses = Object.values(courseSalesMap).map(course => ({
-//       ...course,
-//       grossSales: Number(course.grossSales.toFixed(2)),
-//       netRevenue: Number(course.netRevenue.toFixed(2))
-//     }));
-
-//     const allPayouts = await payoutCollection
-//       .find({ teacherEmail: email })
-//       .sort({ createdAt: -1 })
-//       .toArray();
-
-//     const completedPayouts = allPayouts.filter(p =>
-//       ["Completed", "completed", "COMPLETED"].includes(p.status)
-//     );
-
-//     const totalPaidOut = completedPayouts.reduce((acc, p) => acc + Number(p.amount || 0), 0);
-//     const availableNetBalance = Math.max(0, netEarningsTotal - totalPaidOut);
-
-//     res.send({
-//       hasPayoutMethod,
-//       payoutMethod,
-//       availableNetBalance: Number(availableNetBalance.toFixed(2)),
-//       netEarningsTotal: Number(netEarningsTotal.toFixed(2)),
-//       totalGross: Number(totalGross.toFixed(2)),
-//       platformFee: Number(platformFee.toFixed(2)),
-//       totalPaidOut: Number(totalPaidOut.toFixed(2)),
-//       currentPlatformFeePercentage: currentDefaultFee, // NEW: so the UI can show "current rate" even though past sales may differ
-//       courses,
-//       payouts: allPayouts
-//     });
-//   } catch (error) {
-//     res.status(500).send({ message: 'Error calculating teacher earnings' });
-//   }
-// });
-app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
-  try {
-    const email = req.params.email;
-
-    if (req.decoded?.email !== email) {
-      return res.status(403).send({ message: 'Forbidden access' });
-    }
-
-    const teacherUser = await usersCollection.findOne({ email });
-    const hasPayoutMethod = Boolean(teacherUser?.payoutMethod?.number);
-    const payoutMethod = teacherUser?.payoutMethod || null;
-
-    const classes = await classCollection.find({
-      $or: [{ teacherEmail: email }, { email: email }]
-    }).toArray();
-
-    const classIds = classes.map(c => c._id.toString());
-
-    const payments = await paymentCollection.find({
-      status: { $in: ['completed', 'paid', 'Completed', 'Paid'] },
-      $or: [
-        { "items.classId": { $in: classIds } },
-        { "items._id": { $in: classIds } },
-        { classId: { $in: classIds } }
-      ]
-    }).toArray();
-
-    const courseSalesMap = {};
-    classes.forEach(c => {
-      const cId = c._id.toString();
-      courseSalesMap[cId] = {
-        _id: c._id,
-        title: c.title || c.className || c.courseName || 'Untitled Course',
-        price: Number(c.price || 0),
-        enrolled: 0,
-        grossSales: 0,
-        netRevenue: 0
-      };
-    });
-
-    // NEW: refund window matching your student-facing refund policy
-    const REFUND_WINDOW_MINUTES = 5; // TEMP testing value — keep in sync with your /refund-requests route
-    const now = Date.now();
-
-    let totalGross = 0;
-    let totalPlatformFee = 0;
-    let pendingGross = 0; // NEW: sales still inside the refund window
-    let pendingPlatformFee = 0; // NEW
-
-    const currentDefaultFee = await getPlatformFeePercentage();
-
-    payments.forEach(payment => {
-      const feeRate = typeof payment.platformFeePercentage === 'number'
-        ? payment.platformFeePercentage
-        : currentDefaultFee;
-
-      // NEW: determine if this sale is still within the refund window
-      const paidAt = new Date(payment.paidAt || payment.createdAt).getTime();
-      const minutesSincePurchase = (now - paidAt) / (1000 * 60);
-      const isWithinRefundWindow = minutesSincePurchase <= REFUND_WINDOW_MINUTES;
-
-      if (Array.isArray(payment.items) && payment.items.length > 0) {
-        payment.items.forEach(item => {
-          const itemId = (item.classId || item._id)?.toString();
-          if (itemId && courseSalesMap[itemId]) {
-            const itemPrice = Number(item.price || 0);
-            const itemNet = itemPrice * (1 - feeRate);
-
-            courseSalesMap[itemId].grossSales += itemPrice;
-            courseSalesMap[itemId].netRevenue += itemNet;
-            courseSalesMap[itemId].enrolled += 1;
-
-            totalGross += itemPrice;
-            totalPlatformFee += itemPrice * feeRate;
-
-            if (isWithinRefundWindow) {
-              pendingGross += itemPrice; // NEW
-              pendingPlatformFee += itemPrice * feeRate; // NEW
+              if (isWithinRefundWindow) {
+                pendingGross += amount; 
+                pendingPlatformFee += amount * feeRate; 
+              }
             }
           }
         });
-      } else {
-        const cId = payment.classId?.toString();
-        if (cId && courseSalesMap[cId]) {
-          const amount = Number(payment.price || payment.amount || 0);
-          const amountNet = amount * (1 - feeRate);
 
-          courseSalesMap[cId].grossSales += amount;
-          courseSalesMap[cId].netRevenue += amountNet;
-          courseSalesMap[cId].enrolled += 1;
+        const platformFee = totalPlatformFee;
+        const netEarningsTotal = totalGross - platformFee;
 
-          totalGross += amount;
-          totalPlatformFee += amount * feeRate;
+        
+        const pendingNet = pendingGross - pendingPlatformFee; 
+        const withdrawableNetTotal = netEarningsTotal - pendingNet; 
 
-          if (isWithinRefundWindow) {
-            pendingGross += amount; // NEW
-            pendingPlatformFee += amount * feeRate; // NEW
-          }
-        }
+        const courses = Object.values(courseSalesMap).map(course => ({
+          ...course,
+          grossSales: Number(course.grossSales.toFixed(2)),
+          netRevenue: Number(course.netRevenue.toFixed(2))
+        }));
+
+        const allPayouts = await payoutCollection
+          .find({ teacherEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        const completedPayouts = allPayouts.filter(p =>
+          ["Completed", "completed", "COMPLETED"].includes(p.status)
+        );
+
+        const totalPaidOut = completedPayouts.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+
+        const availableNetBalance = Math.max(0, withdrawableNetTotal - totalPaidOut);
+
+        res.send({
+          hasPayoutMethod,
+          payoutMethod,
+          availableNetBalance: Number(availableNetBalance.toFixed(2)),
+          pendingNetBalance: Number(Math.max(0, pendingNet).toFixed(2)), 
+          netEarningsTotal: Number(netEarningsTotal.toFixed(2)),
+          totalGross: Number(totalGross.toFixed(2)),
+          platformFee: Number(platformFee.toFixed(2)),
+          totalPaidOut: Number(totalPaidOut.toFixed(2)),
+          currentPlatformFeePercentage: currentDefaultFee,
+          refundWindowMinutes: REFUND_WINDOW_MINUTES, 
+          courses,
+          payouts: allPayouts
+        });
+      } catch (error) {
+        res.status(500).send({ message: 'Error calculating teacher earnings' });
       }
     });
 
-    const platformFee = totalPlatformFee;
-    const netEarningsTotal = totalGross - platformFee;
+    
+    app.post('/teacher/payouts/request/:email', verifyToken, async (req, res) => {
+      try {
+        const { email } = req.params;
+        if (req.decoded?.email !== email) {
+          return res.status(403).send({ message: 'Forbidden access' });
+        }
 
-    // NEW: withdrawable earnings exclude anything still inside the refund window
-    const pendingNet = pendingGross - pendingPlatformFee; // NEW
-    const withdrawableNetTotal = netEarningsTotal - pendingNet; // NEW
+        const existingPending = await payoutCollection.findOne({
+          teacherEmail: email,
+          status: 'Pending'
+        });
+        if (existingPending) {
+          return res.status(400).send({
+            success: false,
+            message: 'You already have a pending payout request. Please wait for it to be processed.'
+          });
+        }
 
-    const courses = Object.values(courseSalesMap).map(course => ({
-      ...course,
-      grossSales: Number(course.grossSales.toFixed(2)),
-      netRevenue: Number(course.netRevenue.toFixed(2))
-    }));
+        const { amount } = req.body;
+        const numericAmount = parseFloat(amount);
 
-    const allPayouts = await payoutCollection
-      .find({ teacherEmail: email })
-      .sort({ createdAt: -1 })
-      .toArray();
+        if (!numericAmount || numericAmount <= 0) {
+          return res.status(400).send({ success: false, message: 'Invalid payout amount.' });
+        }
 
-    const completedPayouts = allPayouts.filter(p =>
-      ["Completed", "completed", "COMPLETED"].includes(p.status)
-    );
+        const teacherUser = await usersCollection.findOne({ email });
+        if (!teacherUser?.payoutMethod?.number) {
+          return res.status(400).send({
+            success: false,
+            message: 'Please add your bKash/bank payout details before requesting a payout.'
+          });
+        }
 
-    const totalPaidOut = completedPayouts.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+        const payoutRecord = {
+          payoutId: `PO-${Date.now()}`,
+          teacherEmail: email,
+          amount: numericAmount,
+          method: teacherUser.payoutMethod.method || 'bKash',
+          bkashNumber: teacherUser.payoutMethod.number,
+          accountName: teacherUser.payoutMethod.accountName,
+          status: 'Pending',
+          createdAt: new Date(),
+          date: new Date().toISOString()
+        };
 
-    // CHANGED: available balance now derived from withdrawable (post-refund-window) earnings only
-    const availableNetBalance = Math.max(0, withdrawableNetTotal - totalPaidOut);
-
-    res.send({
-      hasPayoutMethod,
-      payoutMethod,
-      availableNetBalance: Number(availableNetBalance.toFixed(2)),
-      pendingNetBalance: Number(Math.max(0, pendingNet).toFixed(2)), // NEW: shown as "processing" in UI
-      netEarningsTotal: Number(netEarningsTotal.toFixed(2)),
-      totalGross: Number(totalGross.toFixed(2)),
-      platformFee: Number(platformFee.toFixed(2)),
-      totalPaidOut: Number(totalPaidOut.toFixed(2)),
-      currentPlatformFeePercentage: currentDefaultFee,
-      refundWindowMinutes: REFUND_WINDOW_MINUTES, // NEW: so frontend can display the policy
-      courses,
-      payouts: allPayouts
+        await payoutCollection.insertOne(payoutRecord);
+        res.send({ success: true, payoutRecord });
+      } catch (error) {
+        console.error('Payout request failed:', error);
+        res.status(500).send({ success: false, message: error.message });
+      }
     });
-  } catch (error) {
-    res.status(500).send({ message: 'Error calculating teacher earnings' });
-  }
-});
-
-    // ==========================================
-    // 2. CREATE STRIPE CONNECT ONBOARDING LINK
-    // ==========================================
-    // ==========================================
-    // CREATE STRIPE CONNECT ONBOARDING LINK
-    // ==========================================
-
-
-    // ==========================================
-    // 3. EXECUTE STRIPE TRANSFER PAYOUT
-    // ==========================================
-    // app.post('/teacher/payouts/request/:email', verifyToken, async (req, res) => {
-    //   try {
-    //     const { email } = req.params;
-    //     if (req.decoded?.email !== email) {
-    //       return res.status(403).send({ message: 'Forbidden access' });
-    //     }
-
-    //     const { amount } = req.body;
-    //     const numericAmount = parseFloat(amount);
-
-    //     if (!numericAmount || numericAmount <= 0) {
-    //       return res.status(400).send({ success: false, message: 'Invalid payout amount.' });
-    //     }
-
-    //     const teacherUser = await usersCollection.findOne({ email });
-    //     if (!teacherUser?.stripeAccountId) {
-    //       return res.status(400).send({
-    //         success: false,
-    //         message: 'No linked Stripe Account found. Please connect Stripe first.'
-    //       });
-    //     }
-
-    //     const transfer = await stripe.transfers.create({
-    //       amount: Math.round(numericAmount * 100),
-    //       currency: 'usd',
-    //       destination: teacherUser.stripeAccountId,
-    //       description: `Earnings payout for ${email} (after platform fee)`,
-    //     });
-
-    //     const payoutRecord = {
-    //       payoutId: `PO-${Date.now()}`,
-    //       stripeTransferId: transfer.id,
-    //       teacherEmail: email,
-    //       amount: numericAmount,
-    //       method: 'Stripe Instant Transfer',
-    //       status: 'Completed',
-    //       createdAt: new Date(),
-    //       date: new Date().toISOString()
-    //     };
-
-    //     await payoutCollection.insertOne(payoutRecord);
-    //     res.send({ success: true, payoutRecord });
-    //   } catch (error) {
-    //     console.error('Stripe Transfer failed:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
-
-    //     app.post('/teacher/payouts/request/:email', verifyToken, async (req, res) => {
-    //   try {
-    //     const { email } = req.params;
-    //     if (req.decoded?.email !== email) {
-    //       return res.status(403).send({ message: 'Forbidden access' });
-    //     }
-
-    //     const { amount } = req.body;
-    //     const numericAmount = parseFloat(amount);
-
-    //     if (!numericAmount || numericAmount <= 0) {
-    //       return res.status(400).send({ success: false, message: 'Invalid payout amount.' });
-    //     }
-
-    //     const teacherUser = await usersCollection.findOne({ email });
-    //     if (!teacherUser?.payoutMethod?.accountNumber) {
-    //       return res.status(400).send({
-    //         success: false,
-    //         message: 'Please add your bKash/bank payout details before requesting a payout.'
-    //       });
-    //     }
-
-    //     const payoutRecord = {
-    //       payoutId: `PO-${Date.now()}`,
-    //       teacherEmail: email,
-    //       amount: numericAmount,
-    //       method: teacherUser.payoutMethod.method,
-    //       accountNumber: teacherUser.payoutMethod.accountNumber,
-    //       accountName: teacherUser.payoutMethod.accountName,
-    //       status: 'Pending', // admin manually processes this, then marks Completed
-    //       createdAt: new Date(),
-    //       date: new Date().toISOString()
-    //     };
-
-    //     await payoutCollection.insertOne(payoutRecord);
-    //     res.send({ success: true, payoutRecord });
-    //   } catch (error) {
-    //     console.error('Payout request failed:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
-
-    // app.post('/teacher/payouts/request/:email', verifyToken, async (req, res) => {
-    //   try {
-    //     const { email } = req.params;
-    //     if (req.decoded?.email !== email) {
-    //       return res.status(403).send({ message: 'Forbidden access' });
-    //     }
-
-    //     const { amount } = req.body;
-    //     const numericAmount = parseFloat(amount);
-    //     if (!numericAmount || numericAmount <= 0) {
-    //       return res.status(400).send({ success: false, message: 'Invalid payout amount.' });
-    //     }
-
-    //     const teacherUser = await usersCollection.findOne({ email });
-    //     if (!teacherUser?.payoutMethod?.number) {
-    //       return res.status(400).send({
-    //         success: false,
-    //         message: 'Please add your bKash number before requesting a payout.'
-    //       });
-    //     }
-
-    //     const payoutRecord = {
-    //       payoutId: `PO-${Date.now()}`,
-    //       teacherEmail: email,
-    //       teacherName: teacherUser.name || 'Teacher',
-    //       amount: numericAmount,
-    //       method: 'bKash',
-    //       bkashNumber: teacherUser.payoutMethod.number,
-    //       accountName: teacherUser.payoutMethod.accountName,
-    //       status: 'Pending',
-    //       createdAt: new Date(),
-    //       date: new Date().toISOString()
-    //     };
-
-    //     await payoutCollection.insertOne(payoutRecord);
-    //     res.send({ success: true, payoutRecord, message: 'Payout request submitted. An admin will process it via bKash shortly.' });
-    //   } catch (error) {
-    //     // console.error('Payout request failed:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
-   app.post('/teacher/payouts/request/:email', verifyToken, async (req, res) => {
-  try {
-    const { email } = req.params;
-    if (req.decoded?.email !== email) {
-      return res.status(403).send({ message: 'Forbidden access' });
-    }
-
-    // Block a new request if one is already awaiting admin action
-    const existingPending = await payoutCollection.findOne({
-      teacherEmail: email,
-      status: 'Pending'
-    });
-    if (existingPending) {
-      return res.status(400).send({
-        success: false,
-        message: 'You already have a pending payout request. Please wait for it to be processed.'
-      });
-    }
-
-    const { amount } = req.body;
-    const numericAmount = parseFloat(amount);
-
-    if (!numericAmount || numericAmount <= 0) {
-      return res.status(400).send({ success: false, message: 'Invalid payout amount.' });
-    }
-
-    const teacherUser = await usersCollection.findOne({ email });
-    if (!teacherUser?.payoutMethod?.number) {
-      return res.status(400).send({
-        success: false,
-        message: 'Please add your bKash/bank payout details before requesting a payout.'
-      });
-    }
-
-    const payoutRecord = {
-      payoutId: `PO-${Date.now()}`,
-      teacherEmail: email,
-      amount: numericAmount,
-      method: teacherUser.payoutMethod.method || 'bKash',
-      bkashNumber: teacherUser.payoutMethod.number,
-      accountName: teacherUser.payoutMethod.accountName,
-      status: 'Pending',
-      createdAt: new Date(),
-      date: new Date().toISOString()
-    };
-
-    await payoutCollection.insertOne(payoutRecord);
-    res.send({ success: true, payoutRecord });
-  } catch (error) {
-    console.error('Payout request failed:', error);
-    res.status(500).send({ success: false, message: error.message });
-  }
-});
 
     app.get('/admin/payouts/pending', verifyToken, verifyAdmin, async (req, res) => {
       try {
@@ -2335,27 +1445,7 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
       }
     });
 
-    // app.patch('/admin/payouts/:id/complete', verifyToken, verifyAdmin, async (req, res) => {
-    //   try {
-    //     const { id } = req.params;
-    //     if (!ObjectId.isValid(id)) {
-    //       return res.status(400).send({ message: 'Invalid Payout ID' });
-    //     }
-
-    //     const result = await payoutCollection.updateOne(
-    //       { _id: new ObjectId(id) },
-    //       { $set: { status: 'Completed', completedAt: new Date() } }
-    //     );
-
-    //     res.send({ success: true, result });
-    //   } catch (error) {
-    //     res.status(500).send({ message: 'Failed to complete payout', error: error.message });
-    //   }
-    // });
-
-
-    // PATCH: Set or update teacher's bKash payout details
-    // GET: All payout requests (Admin only)
+  
     app.get('/admin/payouts', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await payoutCollection.find().sort({ createdAt: -1 }).toArray();
@@ -2365,7 +1455,7 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
       }
     });
 
-    // PATCH: Mark a payout as completed, with the actual bKash transaction ID
+    
     app.patch('/admin/payouts/:id/complete', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
@@ -2389,7 +1479,6 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
       }
     });
 
-    // PATCH: Reject a pending payout request
     app.patch('/admin/payouts/:id/reject', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
@@ -2440,26 +1529,11 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
       }
     });
 
-
-
-    // ==========================================
-    // 4. GET USER ROLE & DETAILS
-    // ==========================================
-    // app.get('/users/:email', verifyToken, async (req, res) => {
-    //   const email = req.params.email;
-    //   if (email !== req.decoded.email) {
-    //     return res.status(403).send({ message: 'Forbidden access' });
-    //   }
-    //   const query = { email: email };
-    //   const user = await usersCollection.findOne(query);
-    //   res.send(user || { role: 'student' });
-    // });
-
-    // PATCH: Activate or Deactivate a user (Admin only)
+    
     app.patch('/users/status/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
-        const { status } = req.body; // expected: 'active' | 'deactivated'
+        const { status } = req.body; 
 
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({ message: 'Invalid User ID' });
@@ -2473,7 +1547,7 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
           return res.status(404).send({ message: 'User not found' });
         }
 
-        // Safety guard: prevent an admin from deactivating themselves
+        
         if (targetUser.email === req.decoded.email && status === 'deactivated') {
           return res.status(400).send({ message: 'You cannot deactivate your own account' });
         }
@@ -2501,7 +1575,7 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
         const query = { email: email };
         const user = await usersCollection.findOne(query);
 
-        // Returns user data if found, or defaults to student role fallback
+        
         res.send(user || { role: 'student' });
       } catch (err) {
         // console.error("Error fetching user details:", err);
@@ -2573,140 +1647,71 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
       }
     });
 
-    // =========================================================================
-    // GET /admin/financials
-    // Unified platform revenue summary, stats, and transaction ledger
-    // =========================================================================
-    // app.get('/admin/financials', verifyToken, verifyAdmin, async (req, res) => {
-    //   try {
-    //     const payments = await paymentCollection.find({}).toArray();
-
-    //     // Fetch payouts directly from payouts collection
-    //     const payouts = await payoutCollection.find({}).toArray();
-
-    //     // Safely filter completed status ignoring case and trailing spaces
-    //     const completedPayouts = payouts.filter(p =>
-    //       String(p.status || '').trim().toLowerCase() === 'completed'
-    //     );
-
-    //     const totalPaidOutToTeachers = completedPayouts.reduce(
-    //       (acc, p) => acc + Number(p.amount || 0), 0
-    //     );
-
-    //     let grossPlatformSales = 0;
-    //     let totalRefunded = 0;
-
-    //     payments.forEach((payment) => {
-    //       const amount = Number(payment.amount || payment.price || payment.totalPrice || 0);
-    //       const status = String(payment.status || '').toLowerCase().trim();
-
-    //       if (status === 'refunded') {
-    //         totalRefunded += amount;
-    //       } else if (['completed', 'paid', 'refund_pending', 'refund pending'].includes(status)) {
-    //         grossPlatformSales += amount;
-    //       }
-    //     });
-
-    //     const PLATFORM_FEE_PERCENTAGE = 0.10;
-    //     const platformCommission = grossPlatformSales * PLATFORM_FEE_PERCENTAGE;
-
-    //     const formattedPaidOut = Number(totalPaidOutToTeachers.toFixed(2));
-    //     const formattedGross = Number(grossPlatformSales.toFixed(2));
-    //     const formattedCommission = Number(platformCommission.toFixed(2));
-    //     const formattedRefunded = Number(totalRefunded.toFixed(2));
-
-    //     res.send({
-    //       success: true,
-    //       stats: {
-    //         totalGrossSales: formattedGross,
-    //         totalRefunded: formattedRefunded,
-    //         platformCommission: formattedCommission,
-    //         totalPaidOut: formattedPaidOut,
-    //         totalPaidOutToTeachers: formattedPaidOut // Provided for fallback
-    //       },
-    //       grossPlatformSales: formattedGross,
-    //       platformCommission: formattedCommission,
-    //       totalPaidOutToTeachers: formattedPaidOut,
-    //       totalPaidOut: formattedPaidOut, // Provided for fallback
-    //       totalRefunded: formattedRefunded,
-    //       payments
-    //     });
-    //   } catch (error) {
-    //     // console.error("Admin Financials Error:", error);
-    //     res.status(500).send({ success: false, message: 'Error fetching financial metrics' });
-    //   }
-    // });
-
     app.get('/admin/financials', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const payments = await paymentCollection.find({}).toArray();
-    const payouts = await payoutCollection.find({}).toArray();
+      try {
+        const payments = await paymentCollection.find({}).toArray();
+        const payouts = await payoutCollection.find({}).toArray();
 
-    const completedPayouts = payouts.filter(p =>
-      String(p.status || '').trim().toLowerCase() === 'completed'
-    );
+        const completedPayouts = payouts.filter(p =>
+          String(p.status || '').trim().toLowerCase() === 'completed'
+        );
 
-    const totalPaidOutToTeachers = completedPayouts.reduce(
-      (acc, p) => acc + Number(p.amount || 0), 0
-    );
+        const totalPaidOutToTeachers = completedPayouts.reduce(
+          (acc, p) => acc + Number(p.amount || 0), 0
+        );
 
-    const currentDefaultFee = await getPlatformFeePercentage(); // NEW
+        const currentDefaultFee = await getPlatformFeePercentage(); 
 
-    let grossPlatformSales = 0;
-    let totalRefunded = 0;
-    let platformCommission = 0; // NEW: now accumulated per-payment
+        let grossPlatformSales = 0;
+        let totalRefunded = 0;
+        let platformCommission = 0; 
 
-    payments.forEach((payment) => {
-      const amount = Number(payment.amount || payment.price || payment.totalPrice || 0);
-      const status = String(payment.status || '').toLowerCase().trim();
-      const feeRate = typeof payment.platformFeePercentage === 'number'
-        ? payment.platformFeePercentage
-        : currentDefaultFee;
+        payments.forEach((payment) => {
+          const amount = Number(payment.amount || payment.price || payment.totalPrice || 0);
+          const status = String(payment.status || '').toLowerCase().trim();
+          const feeRate = typeof payment.platformFeePercentage === 'number'
+            ? payment.platformFeePercentage
+            : currentDefaultFee;
 
-      if (status === 'refunded') {
-        totalRefunded += amount;
-      } else if (['completed', 'paid', 'refund_pending', 'refund pending'].includes(status)) {
-        grossPlatformSales += amount;
-        platformCommission += amount * feeRate; // NEW
+          if (status === 'refunded') {
+            totalRefunded += amount;
+          } else if (['completed', 'paid', 'refund_pending', 'refund pending'].includes(status)) {
+            grossPlatformSales += amount;
+            platformCommission += amount * feeRate; 
+          }
+        });
+
+        const formattedPaidOut = Number(totalPaidOutToTeachers.toFixed(2));
+        const formattedGross = Number(grossPlatformSales.toFixed(2));
+        const formattedCommission = Number(platformCommission.toFixed(2));
+        const formattedRefunded = Number(totalRefunded.toFixed(2));
+
+        res.send({
+          success: true,
+          stats: {
+            totalGrossSales: formattedGross,
+            totalRefunded: formattedRefunded,
+            platformCommission: formattedCommission,
+            totalPaidOut: formattedPaidOut,
+            totalPaidOutToTeachers: formattedPaidOut
+          },
+          grossPlatformSales: formattedGross,
+          platformCommission: formattedCommission,
+          totalPaidOutToTeachers: formattedPaidOut,
+          totalPaidOut: formattedPaidOut,
+          totalRefunded: formattedRefunded,
+          currentPlatformFeePercentage: currentDefaultFee, 
+          payments
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, message: 'Error fetching financial metrics' });
       }
     });
 
-    const formattedPaidOut = Number(totalPaidOutToTeachers.toFixed(2));
-    const formattedGross = Number(grossPlatformSales.toFixed(2));
-    const formattedCommission = Number(platformCommission.toFixed(2));
-    const formattedRefunded = Number(totalRefunded.toFixed(2));
-
-    res.send({
-      success: true,
-      stats: {
-        totalGrossSales: formattedGross,
-        totalRefunded: formattedRefunded,
-        platformCommission: formattedCommission,
-        totalPaidOut: formattedPaidOut,
-        totalPaidOutToTeachers: formattedPaidOut
-      },
-      grossPlatformSales: formattedGross,
-      platformCommission: formattedCommission,
-      totalPaidOutToTeachers: formattedPaidOut,
-      totalPaidOut: formattedPaidOut,
-      totalRefunded: formattedRefunded,
-      currentPlatformFeePercentage: currentDefaultFee, // NEW
-      payments
-    });
-  } catch (error) {
-    res.status(500).send({ success: false, message: 'Error fetching financial metrics' });
-  }
-});
-
-    // =========================================================================
-    // 2. GET /admin/transactions/all
-    // Overall audit log of all student payments and payouts across all users
-    // =========================================================================
-    // =========================================================================
     app.get('/admin/transactions/all', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const payments = await paymentCollection.find({}).sort({ createdAt: -1, date: -1 }).toArray();
-
+        const currentDefaultFee = await getPlatformFeePercentage(); 
         const formattedPayments = payments.map(p => {
           const rawAmount = p.amount ?? p.price ?? p.totalPrice ?? p.pricePaid ?? 0;
           const numAmount = Number(rawAmount);
@@ -2740,476 +1745,141 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
             }
           }
 
-         return {
-  _id: p._id,
-  transactionId: p.transactionId || p.stripePaymentIntentId || p.paymentIntentId || p._id?.toString(),
-  stripePaymentIntentId: p.stripePaymentIntentId || p.paymentIntentId || p.transactionId,
-  userEmail,
-  courseTitle: courseTitle || 'General Course Enrollment',
-  amount: isNaN(numAmount) ? 0 : numAmount,
-  currency: (p.currency || 'usd').toUpperCase(),
-  status: p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1).toLowerCase() : 'Completed',
-  date: isoDate,
-  sslcommerzRefundSucceeded: p.sslcommerzRefundSucceeded ?? null, // NEW
-  refundId: p.refundId || null // NEW
-};
+          const feeRate = typeof p.platformFeePercentage === 'number'
+            ? p.platformFeePercentage
+            : currentDefaultFee; 
+          const commissionAmount = Number((numAmount * feeRate).toFixed(2));
+
+          return {
+            _id: p._id,
+            transactionId: p.transactionId || p.stripePaymentIntentId || p.paymentIntentId || p._id?.toString(),
+            stripePaymentIntentId: p.stripePaymentIntentId || p.paymentIntentId || p.transactionId,
+            userEmail,
+            courseTitle: courseTitle || 'General Course Enrollment',
+            amount: isNaN(numAmount) ? 0 : numAmount,
+            currency: (p.currency || 'usd').toUpperCase(),
+            status: p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1).toLowerCase() : 'Completed',
+            date: isoDate,
+            sslcommerzRefundSucceeded: p.sslcommerzRefundSucceeded ?? null,
+            refundId: p.refundId || null,
+            commissionAmount, 
+            commissionPercentage: Number((feeRate * 100).toFixed(1)), 
+            isLegacyFeeRate: typeof p.platformFeePercentage !== 'number' 
+          };
         });
 
         res.send({ success: true, transactions: formattedPayments });
       } catch (error) {
-        // console.error('Error fetching admin transactions:', error);
         res.status(500).send({ success: false, message: error.message });
       }
     });
 
-    // etao last time a change krsilm
-    // app.patch('/refunds/approve/:id', verifyToken, verifyAdmin, async (req, res) => {
-    //   try {
-    //     const refundId = req.params.id;
-    //     const refundDoc = await refundCollection.findOne({ _id: new ObjectId(refundId) });
-
-    //     if (!refundDoc) {
-    //       return res.status(404).send({ message: 'Refund request not found' });
-    //     }
-
-    //     const { classId, userEmail, transactionId, amount } = refundDoc;
-
-    //     // 1. Update Refund Request Status
-    //     await refundCollection.updateOne(
-    //       { _id: new ObjectId(refundId) },
-    //       { $set: { status: 'approved', processedAt: new Date() } }
-    //     );
-
-    //     // 2. Update Payment Record Status to 'refunded' (Excludes it from Total Revenue calculations)
-    //     if (transactionId) {
-    //       await paymentCollection.updateOne(
-    //         { transactionId: transactionId },
-    //         { $set: { status: 'refunded' } }
-    //       );
-    //     } else {
-    //       await paymentCollection.updateOne(
-    //         { userEmail: userEmail, 'items.classId': classId, status: 'completed' },
-    //         { $set: { status: 'refunded' } }
-    //       );
-    //     }
-
-    //     // 3. Remove or update Enrollment Status
-    //     await enrollmentCollection.deleteOne({
-    //       classId: classId,
-    //       userEmail: userEmail
-    //     });
-
-    //     // 4. Decrement Total Enrollment Count on the Class
-    //     if (ObjectId.isValid(classId)) {
-    //       await classCollection.updateOne(
-    //         { _id: new ObjectId(classId) },
-    //         { $inc: { totalEnrollment: -1 } }
-    //       );
-    //     }
-
-    //     res.send({ success: true, message: 'Refund approved and dashboard updated successfully.' });
-    //   } catch (error) {
-    //     console.error('Error approving refund:', error);
-    //     res.status(500).send({ message: 'Failed to process refund approval' });
-    //   }
-    // });
-
-    // =========================================================================
-    // 1. POST /admin/payments/refund (Direct Admin Refund)
-    // =========================================================================
-    // app.post('/admin/payments/refund', verifyToken, verifyAdmin, async (req, res) => {
-    //   try {
-    //     const { paymentIntentId, transactionId, reason } = req.body;
-
-    //     if (!paymentIntentId && !transactionId) {
-    //       return res.status(400).send({ success: false, message: 'Missing transaction/payment identifiers.' });
-    //     }
-
-    //     const queryConditions = [];
-    //     if (paymentIntentId) queryConditions.push({ stripePaymentIntentId: paymentIntentId }, { paymentIntentId });
-    //     if (transactionId) {
-    //       queryConditions.push({ transactionId });
-    //       if (ObjectId.isValid(transactionId)) {
-    //         queryConditions.push({ _id: new ObjectId(transactionId) });
-    //       }
-    //     }
-
-    //     const payment = await paymentCollection.findOne({ $or: queryConditions });
-    //     if (!payment) {
-    //       return res.status(404).send({ success: false, message: 'Payment record not found.' });
-    //     }
-
-    //     if (payment.status === 'refunded') {
-    //       return res.status(400).send({ success: false, message: 'Payment is already refunded.' });
-    //     }
-
-    //     let refund = null;
-    //     const targetIntent = paymentIntentId || transactionId || payment.stripePaymentIntentId || payment.transactionId;
-
-    //     if (targetIntent && targetIntent.startsWith('pi_')) {
-    //       try {
-    //         // Attempt refund with transfer reversals first (for Stripe Connect payments)
-    //         refund = await stripe.refunds.create({
-    //           payment_intent: targetIntent,
-    //           reason: reason || 'requested_by_customer',
-    //           reverse_transfer: true,
-    //           refund_application_fee: true
-    //         });
-    //       } catch (stripeErr) {
-    //         // Fallback: If no associated transfer exists, perform a standard Stripe refund
-    //         if (stripeErr.message.includes('associated transfer') || stripeErr.message.includes('application fee')) {
-    //           try {
-    //             refund = await stripe.refunds.create({
-    //               payment_intent: targetIntent,
-    //               reason: reason || 'requested_by_customer'
-    //             });
-    //           } catch (fallbackErr) {
-    //             console.error('Stripe fallback refund failed:', fallbackErr.message);
-    //             return res.status(502).send({ success: false, message: `Stripe rejected refund: ${fallbackErr.message}` });
-    //           }
-    //         } else {
-    //           console.error('Stripe refund failed:', stripeErr.message);
-    //           return res.status(502).send({ success: false, message: `Stripe rejected refund: ${stripeErr.message}` });
-    //         }
-    //       }
-    //     }
-
-    //     // 1. Update Payment Status to lowercase 'refunded'
-    //     await paymentCollection.updateOne(
-    //       { _id: payment._id },
-    //       {
-    //         $set: {
-    //           status: 'refunded',
-    //           refundId: refund ? refund.id : `REF-${Date.now()}`,
-    //           refundedAt: new Date().toISOString(),
-    //           refundReason: reason || 'Admin initiated refund'
-    //         }
-    //       }
-    //     );
-
-    //     // 2. Revoke Course Access & Adjust Counter
-    //     const classIds = Array.isArray(payment.items) && payment.items.length > 0
-    //       ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
-    //       : (payment.classId ? [payment.classId.toString()] : []);
-
-    //     if (classIds.length > 0) {
-    //       await enrollmentCollection.deleteMany({
-    //         userEmail: payment.userEmail,
-    //         classId: { $in: classIds }
-    //       });
-
-    //       for (const cid of classIds) {
-    //         if (ObjectId.isValid(cid)) {
-    //           await classCollection.updateOne(
-    //             { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
-    //             { $inc: { totalEnrollment: -1 } }
-    //           );
-    //         }
-    //       }
-    //     }
-
-    //     res.send({
-    //       success: true,
-    //       message: 'Refund issued and enrollments revoked successfully.',
-    //       refundId: refund ? refund.id : null
-    //     });
-    //   } catch (error) {
-    //     console.error('Stripe Refund error:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
-
-    // app.post('/admin/payments/refund', verifyToken, verifyAdmin, async (req, res) => {
-    //   try {
-    //     const { paymentIntentId, transactionId, reason } = req.body;
-
-    //     if (!paymentIntentId && !transactionId) {
-    //       return res.status(400).send({ success: false, message: 'Missing transaction/payment identifiers.' });
-    //     }
-
-    //     const queryConditions = [];
-    //     if (paymentIntentId) queryConditions.push({ stripePaymentIntentId: paymentIntentId }, { paymentIntentId });
-    //     if (transactionId) {
-    //       queryConditions.push({ transactionId });
-    //       if (ObjectId.isValid(transactionId)) {
-    //         queryConditions.push({ _id: new ObjectId(transactionId) });
-    //       }
-    //     }
-
-    //     const payment = await paymentCollection.findOne({ $or: queryConditions });
-    //     if (!payment) {
-    //       return res.status(404).send({ success: false, message: 'Payment record not found.' });
-    //     }
-
-    //     if (payment.status === 'refunded') {
-    //       return res.status(400).send({ success: false, message: 'Payment is already refunded.' });
-    //     }
-
-    //     let refund = null;
-    //     const targetIntent = paymentIntentId || transactionId || payment.stripePaymentIntentId || payment.transactionId;
-
-    //     // Map custom reason string to Stripe's strict allowed enum
-    //     const validStripeReasons = ['duplicate', 'fraudulent', 'requested_by_customer'];
-    //     const stripeReason = validStripeReasons.includes(reason) ? reason : 'requested_by_customer';
-
-    //     if (targetIntent && targetIntent.startsWith('pi_')) {
-    //       try {
-    //         refund = await stripe.refunds.create({
-    //           payment_intent: targetIntent,
-    //           reason: stripeReason,
-    //           reverse_transfer: true,
-    //           refund_application_fee: true
-    //         });
-    //       } catch (stripeErr) {
-    //         if (stripeErr.message.includes('associated transfer') || stripeErr.message.includes('application fee')) {
-    //           try {
-    //             refund = await stripe.refunds.create({
-    //               payment_intent: targetIntent,
-    //               reason: stripeReason
-    //             });
-    //           } catch (fallbackErr) {
-    //             console.error('Stripe fallback refund failed:', fallbackErr.message);
-    //             return res.status(502).send({ success: false, message: `Stripe rejected refund: ${fallbackErr.message}` });
-    //           }
-    //         } else {
-    //           console.error('Stripe refund failed:', stripeErr.message);
-    //           return res.status(502).send({ success: false, message: `Stripe rejected refund: ${stripeErr.message}` });
-    //         }
-    //       }
-    //     }
-
-    //     // 1. Update Payment Status in DB
-    //     await paymentCollection.updateOne(
-    //       { _id: payment._id },
-    //       {
-    //         $set: {
-    //           status: 'refunded',
-    //           refundId: refund ? refund.id : `REF-${Date.now()}`,
-    //           refundedAt: new Date().toISOString(),
-    //           refundReason: reason || 'Admin initiated refund'
-    //         }
-    //       }
-    //     );
-
-    //     // 2. Revoke Course Access & Adjust Counter
-    //     const classIds = Array.isArray(payment.items) && payment.items.length > 0
-    //       ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
-    //       : (payment.classId ? [payment.classId.toString()] : []);
-
-    //     if (classIds.length > 0) {
-    //       await enrollmentCollection.deleteMany({
-    //         userEmail: payment.userEmail,
-    //         classId: { $in: classIds }
-    //       });
-
-    //       for (const cid of classIds) {
-    //         if (ObjectId.isValid(cid)) {
-    //           await classCollection.updateOne(
-    //             { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
-    //             { $inc: { totalEnrollment: -1 } }
-    //           );
-    //         }
-    //       }
-    //     }
-
-    //     res.send({
-    //       success: true,
-    //       message: 'Refund issued and enrollments revoked successfully.',
-    //       refundId: refund ? refund.id : null
-    //     });
-    //   } catch (error) {
-    //     console.error('Stripe Refund error:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
-
-    // app.post('/admin/payments/refund', verifyToken, verifyAdmin, async (req, res) => {
-    //   try {
-    //     const { paymentIntentId, transactionId, reason } = req.body;
-
-    //     if (!paymentIntentId && !transactionId) {
-    //       return res.status(400).send({ success: false, message: 'Missing transaction/payment identifiers.' });
-    //     }
-
-    //     const queryConditions = [];
-    //     if (paymentIntentId) queryConditions.push({ transactionId: paymentIntentId });
-    //     if (transactionId) {
-    //       queryConditions.push({ transactionId });
-    //       if (ObjectId.isValid(transactionId)) {
-    //         queryConditions.push({ _id: new ObjectId(transactionId) });
-    //       }
-    //     }
-
-    //     const payment = await paymentCollection.findOne({ $or: queryConditions });
-    //     if (!payment) {
-    //       return res.status(404).send({ success: false, message: 'Payment record not found.' });
-    //     }
-
-    //     if (payment.status === 'refunded') {
-    //       return res.status(400).send({ success: false, message: 'Payment is already refunded.' });
-    //     }
-
-    //     const generatedRefundId = `MANUAL-REF-${Date.now()}`;
-
-    //     // 1. Update Payment Status in DB
-    //     await paymentCollection.updateOne(
-    //       { _id: payment._id },
-    //       {
-    //         $set: {
-    //           status: 'refunded',
-    //           refundId: generatedRefundId,
-    //           refundedAt: new Date().toISOString(),
-    //           refundReason: reason || 'Admin initiated refund'
-    //         }
-    //       }
-    //     );
-
-    //     // 2. Revoke Course Access & Adjust Counter
-    //     const classIds = Array.isArray(payment.items) && payment.items.length > 0
-    //       ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
-    //       : (payment.classId ? [payment.classId.toString()] : []);
-
-    //     if (classIds.length > 0) {
-    //       await enrollmentCollection.deleteMany({
-    //         userEmail: payment.userEmail,
-    //         classId: { $in: classIds }
-    //       });
-
-    //       for (const cid of classIds) {
-    //         if (ObjectId.isValid(cid)) {
-    //           await classCollection.updateOne(
-    //             { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
-    //             { $inc: { totalEnrollment: -1 } }
-    //           );
-    //         }
-    //       }
-    //     }
-
-    //     res.send({
-    //       success: true,
-    //       message: 'Refund issued and enrollments revoked successfully.',
-    //       refundId: generatedRefundId
-    //     });
-    //   } catch (error) {
-    //     // console.error('Admin Refund error:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
     app.post('/admin/payments/refund', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const { paymentIntentId, transactionId, reason } = req.body;
+      try {
+        const { paymentIntentId, transactionId, reason } = req.body;
 
-    if (!paymentIntentId && !transactionId) {
-      return res.status(400).send({ success: false, message: 'Missing transaction/payment identifiers.' });
-    }
+        if (!paymentIntentId && !transactionId) {
+          return res.status(400).send({ success: false, message: 'Missing transaction/payment identifiers.' });
+        }
 
-    const queryConditions = [];
-    if (paymentIntentId) queryConditions.push({ transactionId: paymentIntentId });
-    if (transactionId) {
-      queryConditions.push({ transactionId });
-      if (ObjectId.isValid(transactionId)) {
-        queryConditions.push({ _id: new ObjectId(transactionId) });
-      }
-    }
+        const queryConditions = [];
+        if (paymentIntentId) queryConditions.push({ transactionId: paymentIntentId });
+        if (transactionId) {
+          queryConditions.push({ transactionId });
+          if (ObjectId.isValid(transactionId)) {
+            queryConditions.push({ _id: new ObjectId(transactionId) });
+          }
+        }
 
-    const payment = await paymentCollection.findOne({ $or: queryConditions });
-    if (!payment) {
-      return res.status(404).send({ success: false, message: 'Payment record not found.' });
-    }
+        const payment = await paymentCollection.findOne({ $or: queryConditions });
+        if (!payment) {
+          return res.status(404).send({ success: false, message: 'Payment record not found.' });
+        }
 
-    if (payment.status === 'refunded') {
-      return res.status(400).send({ success: false, message: 'Payment is already refunded.' });
-    }
+        if (payment.status === 'refunded') {
+          return res.status(400).send({ success: false, message: 'Payment is already refunded.' });
+        }
 
-    // NEW: attempt the real SSLCommerz refund call
-    let refundResponse = null;
-    let refundId;
-    let sslcommerzRefundSucceeded = false;
+        let refundResponse = null;
+        let refundId;
+        let sslcommerzRefundSucceeded = false;
 
-    try {
-      refundResponse = await processSslcommerzRefund(payment, payment.price, reason);
-      refundId = refundResponse?.refund_ref_id || `SSLC-REF-${Date.now()}`;
-      sslcommerzRefundSucceeded = true;
-    } catch (refundErr) {
-      // Automated refund failed or wasn't possible — fall back to manual tracking,
-      // but tell the admin clearly so they know money hasn't actually moved yet
-      refundId = `MANUAL-REF-${Date.now()}`;
-      console.error('SSLCommerz refund failed, falling back to manual record:', refundErr.message);
-    }
+        try {
+          refundResponse = await processSslcommerzRefund(payment, payment.price, reason);
+          refundId = refundResponse?.refund_ref_id || `SSLC-REF-${Date.now()}`;
+          sslcommerzRefundSucceeded = true;
+        } catch (refundErr) {
+          
+          refundId = `MANUAL-REF-${Date.now()}`;
+          console.error('SSLCommerz refund failed, falling back to manual record:', refundErr.message);
+        }
 
-    // 1. Update Payment Status in DB
-    await paymentCollection.updateOne(
-      { _id: payment._id },
-      {
-        $set: {
-          status: 'refunded',
+        
+        await paymentCollection.updateOne(
+          { _id: payment._id },
+          {
+            $set: {
+              status: 'refunded',
+              refundId,
+              sslcommerzRefundSucceeded, 
+              sslcommerzRefundRaw: refundResponse || null,
+              refundedAt: new Date().toISOString(),
+              refundReason: reason || 'Admin initiated refund'
+            }
+          }
+        );
+
+        await refundRequestsCollection.updateMany(
+          {
+            $or: [
+              { paymentId: payment._id.toString() },
+              { paymentId: payment.transactionId }
+            ],
+            status: 'pending'
+          },
+          {
+            $set: {
+              status: 'approved',
+              updatedAt: new Date(),
+              resolvedVia: 'admin-direct-refund' 
+            }
+          }
+        );
+
+        
+        const classIds = Array.isArray(payment.items) && payment.items.length > 0
+          ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
+          : (payment.classId ? [payment.classId.toString()] : []);
+
+        if (classIds.length > 0) {
+          await enrollmentCollection.deleteMany({
+            userEmail: payment.userEmail,
+            classId: { $in: classIds }
+          });
+
+          for (const cid of classIds) {
+            if (ObjectId.isValid(cid)) {
+              await classCollection.updateOne(
+                { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
+                { $inc: { totalEnrollment: -1 } }
+              );
+            }
+          }
+        }
+
+        res.send({
+          success: true,
+          message: sslcommerzRefundSucceeded
+            ? 'Refund processed automatically via SSLCommerz. Enrollment revoked.'
+            : 'Refund recorded, but automated processing failed — please refund this payment manually via the SSLCommerz merchant panel.',
           refundId,
-          sslcommerzRefundSucceeded, // NEW: tells you if money actually moved automatically
-          sslcommerzRefundRaw: refundResponse || null,
-          refundedAt: new Date().toISOString(),
-          refundReason: reason || 'Admin initiated refund'
-        }
+          sslcommerzRefundSucceeded
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, message: error.message });
       }
-    );
-
-    // 2. NEW: Sync fix — close out any pending refundRequests doc tied to this payment
-    // so it doesn't stay stuck at 'pending' and get double-processed later from ManageRefunds
-    await refundRequestsCollection.updateMany(
-      {
-        $or: [
-          { paymentId: payment._id.toString() },
-          { paymentId: payment.transactionId }
-        ],
-        status: 'pending'
-      },
-      {
-        $set: {
-          status: 'approved',
-          updatedAt: new Date(),
-          resolvedVia: 'admin-direct-refund' // NEW: audit trail showing this wasn't approved through the normal request flow
-        }
-      }
-    );
-
-    // 3. Revoke Course Access & Adjust Counter
-    const classIds = Array.isArray(payment.items) && payment.items.length > 0
-      ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
-      : (payment.classId ? [payment.classId.toString()] : []);
-
-    if (classIds.length > 0) {
-      await enrollmentCollection.deleteMany({
-        userEmail: payment.userEmail,
-        classId: { $in: classIds }
-      });
-
-      for (const cid of classIds) {
-        if (ObjectId.isValid(cid)) {
-          await classCollection.updateOne(
-            { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
-            { $inc: { totalEnrollment: -1 } }
-          );
-        }
-      }
-    }
-
-    res.send({
-      success: true,
-      message: sslcommerzRefundSucceeded
-        ? 'Refund processed automatically via SSLCommerz. Enrollment revoked.'
-        : 'Refund recorded, but automated processing failed — please refund this payment manually via the SSLCommerz merchant panel.',
-      refundId,
-      sslcommerzRefundSucceeded
     });
-  } catch (error) {
-    res.status(500).send({ success: false, message: error.message });
-  }
-});
-
-    // GET /classes/stats/:id (Protected Admin Route)
-    // ==========================================
-    // ==========================================
-    // GET /classes/stats/:id (Class Analytics)
-    // ==========================================
+   
     app.get('/classes/stats/:id', verifyToken, async (req, res) => {
       try {
         const classId = req.params.id;
@@ -3218,11 +1888,9 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
           return res.status(400).send({ message: 'Class ID is required' });
         }
 
-        // Safely parse ObjectId
         const isObjectId = ObjectId.isValid(classId) && (String(new ObjectId(classId)) === classId);
         const objectIdVal = isObjectId ? new ObjectId(classId) : null;
 
-        // 1. Fetch Class Details safely
         const queryConditions = [{ _id: classId }];
         if (objectIdVal) {
           queryConditions.push({ _id: objectIdVal });
@@ -3234,7 +1902,6 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
           return res.status(404).send({ message: 'Class not found' });
         }
 
-        // 2. Build Base Match Query for Payments matching this class
         const matchConditions = [
           { classId: classId },
           { class_Id: classId },
@@ -3251,13 +1918,12 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
 
         const baseMatchQuery = { $or: matchConditions };
 
-        // 3. Aggregate Revenue for ACTIVE/COMPLETED payments only (excludes refunded)
         const revenueStats = await paymentCollection.aggregate([
           {
             $match: {
               $and: [
                 baseMatchQuery,
-                { status: { $ne: 'refunded' } } // EXCLUDE REFUNDED PAYMENTS FROM REVENUE
+                { status: { $ne: 'refunded' } } 
               ]
             }
           },
@@ -3269,7 +1935,7 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
           }
         ]).toArray();
 
-        // 4. Fetch Recent Transactions (Includes both completed and refunded for visibility)
+        
         const recentEnrollments = await paymentCollection
           .find(baseMatchQuery)
           .sort({ _id: -1 })
@@ -3278,11 +1944,9 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
 
         const revenue = revenueStats[0]?.totalRevenue || 0;
 
-        // 5. Send Response
         res.send({
           classDetails: classData,
           totalRevenue: Number(revenue.toFixed(2)),
-          // Prioritize live classData.totalEnrollment counter, default to 0
           totalEnrollments: typeof classData.totalEnrollment === 'number' ? classData.totalEnrollment : 0,
           recentEnrollments,
         });
@@ -3295,47 +1959,41 @@ app.get('/teacher/earnings/:email', verifyToken, async (req, res) => {
 
     // refund
 
-    // GET: Fetch all refund requests (Admin only)
-    // GET: Fetch all refund requests (Admin only)
-app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const requests = await refundRequestsCollection.find().sort({ requestedAt: -1 }).toArray();
+    app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const requests = await refundRequestsCollection.find().sort({ requestedAt: -1 }).toArray();
 
-    // NEW: enrich each request with its payment's actual refund-processing status,
-    // so the UI can flag ones that still need manual completion in the SSLCommerz panel
-    const paymentIds = requests.map(r => r.paymentId).filter(Boolean);
-    const validObjectIds = paymentIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
+        const paymentIds = requests.map(r => r.paymentId).filter(Boolean);
+        const validObjectIds = paymentIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
 
-    const relatedPayments = await paymentCollection.find({
-      $or: [
-        { _id: { $in: validObjectIds } },
-        { transactionId: { $in: paymentIds } }
-      ]
-    }).toArray();
+        const relatedPayments = await paymentCollection.find({
+          $or: [
+            { _id: { $in: validObjectIds } },
+            { transactionId: { $in: paymentIds } }
+          ]
+        }).toArray();
 
-    const paymentMap = {};
-    relatedPayments.forEach(p => {
-      paymentMap[p._id.toString()] = p;
-      if (p.transactionId) paymentMap[p.transactionId] = p;
+        const paymentMap = {};
+        relatedPayments.forEach(p => {
+          paymentMap[p._id.toString()] = p;
+          if (p.transactionId) paymentMap[p.transactionId] = p;
+        });
+
+        const enriched = requests.map(r => {
+          const relatedPayment = paymentMap[r.paymentId];
+          return {
+            ...r,
+            sslcommerzRefundSucceeded: relatedPayment?.sslcommerzRefundSucceeded ?? null,
+            paymentRefundId: relatedPayment?.refundId || null
+          };
+        });
+
+        res.send(enriched);
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
     });
 
-    const enriched = requests.map(r => {
-      const relatedPayment = paymentMap[r.paymentId];
-      return {
-        ...r,
-        sslcommerzRefundSucceeded: relatedPayment?.sslcommerzRefundSucceeded ?? null,
-        paymentRefundId: relatedPayment?.refundId || null
-      };
-    });
-
-    res.send(enriched);
-  } catch (error) {
-    res.status(500).send({ message: error.message });
-  }
-});
-
-    // PATCH: Process refund request status (Approve or Reject)
-    // POST: Student submits a refund request
 
     app.post('/refund-requests', verifyToken, async (req, res) => {
       try {
@@ -3357,7 +2015,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.status(404).send({ success: false, message: 'Payment not found' });
         }
 
-        // Ownership check
         if (payment.userEmail !== req.decoded.email) {
           return res.status(403).send({ success: false, message: 'Forbidden' });
         }
@@ -3369,8 +2026,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.status(400).send({ success: false, message: 'A refund request is already pending for this payment' });
         }
 
-        // --- Refund window, enforced server-side ---
-        const REFUND_WINDOW_MINUTES = 5; // TEMP: testing value — change back to days for production
+        const REFUND_WINDOW_MINUTES = 5; 
 
         const paidAt = new Date(payment.paidAt || payment.createdAt);
         const minutesSincePurchase = (Date.now() - paidAt.getTime()) / (1000 * 60);
@@ -3385,22 +2041,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           });
         }
 
-        // --- 7-day window, enforced server-side now, not just in the UI ---
-        // const REFUND_WINDOW_DAYS = 7;
-        // const paidAt = new Date(payment.paidAt || payment.createdAt);
-        // const daysSincePurchase = (Date.now() - paidAt.getTime()) / (1000 * 60 * 60 * 24);
-
-        // if (isNaN(paidAt.getTime())) {
-        //   return res.status(500).send({ success: false, message: 'Payment date could not be determined' });
-        // }
-        // if (daysSincePurchase > REFUND_WINDOW_DAYS) {
-        //   return res.status(400).send({
-        //     success: false,
-        //     message: `Refund window has expired. Requests must be submitted within ${REFUND_WINDOW_DAYS} days of purchase.`
-        //   });
-        // }
-
-        // --- NEW: Content-consumption gate — max 25% of any purchased course's lessons viewed ---
         const MAX_PROGRESS_PERCENT_FOR_REFUND = 25;
 
         const classIds = Array.isArray(payment.items) && payment.items.length > 0
@@ -3480,497 +2120,116 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // app.post('/refund-requests', verifyToken, async (req, res) => {
-    //   try {
-    //     const { paymentId, reason, explanation, userName } = req.body;
-
-    //     if (!paymentId) {
-    //       return res.status(400).send({ success: false, message: 'Missing paymentId' });
-    //     }
-    //     if (!explanation || !explanation.trim()) {
-    //       return res.status(400).send({ success: false, message: 'Explanation is required' });
-    //     }
-
-    //     const paymentQuery = [];
-    //     if (ObjectId.isValid(paymentId)) paymentQuery.push({ _id: new ObjectId(paymentId) });
-    //     paymentQuery.push({ transactionId: paymentId });
-
-    //     const payment = await paymentCollection.findOne({ $or: paymentQuery });
-    //     if (!payment) {
-    //       return res.status(404).send({ success: false, message: 'Payment not found' });
-    //     }
-
-    //     // Ownership check
-    //     if (payment.userEmail !== req.decoded.email) {
-    //       return res.status(403).send({ success: false, message: 'Forbidden' });
-    //     }
-
-    //     if (payment.status === 'refunded') {
-    //       return res.status(400).send({ success: false, message: 'This payment was already refunded' });
-    //     }
-    //     if (payment.status === 'refund_pending') {
-    //       return res.status(400).send({ success: false, message: 'A refund request is already pending for this payment' });
-    //     }
-
-    //     // --- 7-day window, enforced server-side now, not just in the UI ---
-    //     // const REFUND_WINDOW_DAYS = 7;
-    //     // const paidAt = new Date(payment.paidAt || payment.createdAt);
-    //     // const daysSincePurchase = (Date.now() - paidAt.getTime()) / (1000 * 60 * 60 * 24);
-
-    //     // if (isNaN(paidAt.getTime())) {
-    //     //   return res.status(500).send({ success: false, message: 'Payment date could not be determined' });
-    //     // }
-    //     // if (daysSincePurchase > REFUND_WINDOW_DAYS) {
-    //     //   return res.status(400).send({
-    //     //     success: false,
-    //     //     message: `Refund window has expired. Requests must be submitted within ${REFUND_WINDOW_DAYS} days of purchase.`
-    //     //   });
-    //     // }
-
-    //     // --- Refund window, enforced server-side ---
-    //     const REFUND_WINDOW_MINUTES = 1; // TEMP: testing value — change back to days for production
-
-    //     const paidAt = new Date(payment.paidAt || payment.createdAt);
-    //     const minutesSincePurchase = (Date.now() - paidAt.getTime()) / (1000 * 60);
-
-    //     if (isNaN(paidAt.getTime())) {
-    //       return res.status(500).send({ success: false, message: 'Payment date could not be determined' });
-    //     }
-    //     if (minutesSincePurchase > REFUND_WINDOW_MINUTES) {
-    //       return res.status(400).send({
-    //         success: false,
-    //         message: `Refund window has expired. Requests must be submitted within ${REFUND_WINDOW_MINUTES} minute(s) of purchase.`
-    //       });
-    //     }
-
-    //     const courseTitle = Array.isArray(payment.items) && payment.items.length
-    //       ? payment.items.map(i => i.title).filter(Boolean).join(', ')
-    //       : 'Course Enrollment';
-
-    //     const result = await refundRequestsCollection.insertOne({
-    //       paymentId: payment._id.toString(),
-    //       userEmail: req.decoded.email,
-    //       userName: userName || '',
-    //       courseTitle,
-    //       amount: payment.price,
-    //       reason: reason || 'Not specified',
-    //       explanation: explanation.trim(),
-    //       status: 'pending',
-    //       requestedAt: new Date()
-    //     });
-
-    //     await paymentCollection.updateOne(
-    //       { _id: payment._id },
-    //       { $set: { refundRequested: true, status: 'refund_pending' } }
-    //     );
-
-    //     res.send({ success: true, insertedId: result.insertedId });
-    //   } catch (error) {
-    //     console.error('Error creating refund request:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
-
-    // PATCH: Admin approves or rejects — approval now actually calls Stripe
-    // =========================================================================
-    // 2. PATCH /refund-requests/:id (Approve/Reject Student Request)
-    // =========================================================================
-    // app.patch('/refund-requests/:id', verifyToken, verifyAdmin, async (req, res) => {
-    //   try {
-    //     const { id } = req.params;
-    //     const { status } = req.body;
-
-    //     if (!ObjectId.isValid(id)) {
-    //       return res.status(400).send({ success: false, message: 'Invalid Refund Request ID' });
-    //     }
-
-    //     const refundRequest = await refundRequestsCollection.findOne({ _id: new ObjectId(id) });
-    //     if (!refundRequest || refundRequest.status !== 'pending') {
-    //       return res.status(400).send({ success: false, message: 'Invalid or already processed request' });
-    //     }
-
-    //     const payment = await paymentCollection.findOne({
-    //       $or: [
-    //         { _id: ObjectId.isValid(refundRequest.paymentId) ? new ObjectId(refundRequest.paymentId) : null },
-    //         { transactionId: refundRequest.paymentId }
-    //       ]
-    //     });
-
-    //     if (!payment) {
-    //       return res.status(404).send({ success: false, message: 'Associated payment record not found' });
-    //     }
-
-    //     // --- REJECT PATH ---
-    //     if (status === 'rejected') {
-    //       await refundRequestsCollection.updateOne(
-    //         { _id: new ObjectId(id) },
-    //         { $set: { status: 'rejected', updatedAt: new Date() } }
-    //       );
-    //       await paymentCollection.updateOne(
-    //         { _id: payment._id },
-    //         { $set: { status: 'completed', refundRequested: false } }
-    //       );
-    //       return res.send({ success: true, message: 'Refund request rejected.' });
-    //     }
-
-    //     // --- APPROVE PATH ---
-    //     let stripeRefund = null;
-    //     const paymentIntentId = payment.stripePaymentIntentId || payment.transactionId;
-
-    //     if (paymentIntentId && paymentIntentId.startsWith('pi_')) {
-    //       try {
-    //         stripeRefund = await stripe.refunds.create({
-    //           payment_intent: paymentIntentId,
-    //           reason: 'requested_by_customer',
-    //           reverse_transfer: true,
-    //           refund_application_fee: true
-    //         });
-    //       } catch (stripeErr) {
-    //         // Fallback: Handle charges that do not have associated Stripe Connect transfers
-    //         if (stripeErr.message.includes('associated transfer') || stripeErr.message.includes('application fee')) {
-    //           try {
-    //             stripeRefund = await stripe.refunds.create({
-    //               payment_intent: paymentIntentId,
-    //               reason: 'requested_by_customer'
-    //             });
-    //           } catch (fallbackErr) {
-    //             console.error('Stripe processing failure during fallback:', fallbackErr.message);
-    //             return res.status(502).send({
-    //               success: false,
-    //               message: `Stripe rejected the refund: ${fallbackErr.message}`
-    //             });
-    //           }
-    //         } else {
-    //           console.error('Stripe processing failure:', stripeErr.message);
-    //           return res.status(502).send({
-    //             success: false,
-    //             message: `Stripe rejected the refund: ${stripeErr.message}`
-    //           });
-    //         }
-    //       }
-    //     }
-
-    //     // Database Updates
-    //     await paymentCollection.updateOne(
-    //       { _id: payment._id },
-    //       {
-    //         $set: {
-    //           status: 'refunded',
-    //           refundId: stripeRefund ? stripeRefund.id : `MANUAL-REF-${Date.now()}`,
-    //           refundedAt: new Date()
-    //         }
-    //       }
-    //     );
-
-    //     await refundRequestsCollection.updateOne(
-    //       { _id: new ObjectId(id) },
-    //       { $set: { status: 'approved', updatedAt: new Date() } }
-    //     );
-
-    //     // Access Revocation
-    //     const classIds = Array.isArray(payment.items) && payment.items.length > 0
-    //       ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
-    //       : (payment.classId ? [payment.classId.toString()] : []);
-
-    //     if (classIds.length > 0) {
-    //       await enrollmentCollection.deleteMany({
-    //         userEmail: payment.userEmail,
-    //         classId: { $in: classIds }
-    //       });
-
-    //       for (const cid of classIds) {
-    //         if (ObjectId.isValid(cid)) {
-    //           await classCollection.updateOne(
-    //             { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
-    //             { $inc: { totalEnrollment: -1 } }
-    //           );
-    //         }
-    //       }
-    //     }
-
-    //     res.send({
-    //       success: true,
-    //       message: 'Refund approved. Funds returned and enrollment revoked.',
-    //       refundId: stripeRefund ? stripeRefund.id : null
-    //     });
-    //   } catch (error) {
-    //     console.error('Refund system error:', error);
-    //     res.status(500).send({ success: false, message: error.message });
-    //   }
-    // });
-
-    // 1. Process Student Refund Request (Approve / Reject)
     app.patch('/refund-requests/:id', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
+      try {
+        const { id } = req.params;
+        const { status } = req.body;
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ success: false, message: 'Invalid Refund Request ID' });
-    }
-
-    const refundRequest = await refundRequestsCollection.findOne({ _id: new ObjectId(id) });
-    if (!refundRequest || refundRequest.status !== 'pending') {
-      return res.status(400).send({ success: false, message: 'Invalid or already processed request' });
-    }
-
-    const payment = await paymentCollection.findOne({
-      $or: [
-        { _id: ObjectId.isValid(refundRequest.paymentId) ? new ObjectId(refundRequest.paymentId) : null },
-        { transactionId: refundRequest.paymentId }
-      ]
-    });
-
-    if (!payment) {
-      return res.status(404).send({ success: false, message: 'Associated payment record not found' });
-    }
-
-    // --- REJECT PATH ---
-    if (status === 'rejected') {
-      await refundRequestsCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { status: 'rejected', updatedAt: new Date() } }
-      );
-      await paymentCollection.updateOne(
-        { _id: payment._id },
-        { $set: { status: 'completed', refundRequested: false } }
-      );
-      return res.send({ success: true, message: 'Refund request rejected.' });
-    }
-
-    // NEW: guard — if this payment was already refunded through another path (e.g. admin direct refund
-    // ran first), don't try to refund it a second time
-    if (payment.status === 'refunded') {
-      await refundRequestsCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { status: 'approved', updatedAt: new Date(), resolvedVia: 'already-refunded-elsewhere' } }
-      );
-      return res.send({ success: true, message: 'This payment was already refunded through another channel. Request closed.' });
-    }
-
-    // --- APPROVE PATH ---
-    let refundResponse = null;
-    let refundId;
-    let sslcommerzRefundSucceeded = false;
-
-    try {
-      refundResponse = await processSslcommerzRefund(payment, payment.price, refundRequest.reason);
-      refundId = refundResponse?.refund_ref_id || `SSLC-REF-${Date.now()}`;
-      sslcommerzRefundSucceeded = true;
-    } catch (refundErr) {
-      refundId = `MANUAL-REF-${Date.now()}`;
-      console.error('SSLCommerz refund failed, falling back to manual record:', refundErr.message);
-    }
-
-    // Database Updates
-    await paymentCollection.updateOne(
-      { _id: payment._id },
-      {
-        $set: {
-          status: 'refunded',
-          refundId,
-          sslcommerzRefundSucceeded,
-          sslcommerzRefundRaw: refundResponse || null,
-          refundedAt: new Date()
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ success: false, message: 'Invalid Refund Request ID' });
         }
-      }
-    );
 
-    await refundRequestsCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { status: 'approved', updatedAt: new Date() } }
-    );
+        const refundRequest = await refundRequestsCollection.findOne({ _id: new ObjectId(id) });
+        if (!refundRequest || refundRequest.status !== 'pending') {
+          return res.status(400).send({ success: false, message: 'Invalid or already processed request' });
+        }
 
-    // Access Revocation & Student Counter Decrement
-    const classIds = Array.isArray(payment.items) && payment.items.length > 0
-      ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
-      : (payment.classId ? [payment.classId.toString()] : []);
+        const payment = await paymentCollection.findOne({
+          $or: [
+            { _id: ObjectId.isValid(refundRequest.paymentId) ? new ObjectId(refundRequest.paymentId) : null },
+            { transactionId: refundRequest.paymentId }
+          ]
+        });
 
-    if (classIds.length > 0) {
-      await enrollmentCollection.deleteMany({
-        userEmail: payment.userEmail,
-        classId: { $in: classIds }
-      });
+        if (!payment) {
+          return res.status(404).send({ success: false, message: 'Associated payment record not found' });
+        }
 
-      for (const cid of classIds) {
-        if (ObjectId.isValid(cid)) {
-          await classCollection.updateOne(
-            { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
-            { $inc: { totalEnrollment: -1 } }
+        if (status === 'rejected') {
+          await refundRequestsCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: { status: 'rejected', updatedAt: new Date() } }
           );
+          await paymentCollection.updateOne(
+            { _id: payment._id },
+            { $set: { status: 'completed', refundRequested: false } }
+          );
+          return res.send({ success: true, message: 'Refund request rejected.' });
         }
+
+        if (payment.status === 'refunded') {
+          await refundRequestsCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: { status: 'approved', updatedAt: new Date(), resolvedVia: 'already-refunded-elsewhere' } }
+          );
+          return res.send({ success: true, message: 'This payment was already refunded through another channel. Request closed.' });
+        }
+
+       
+        let refundResponse = null;
+        let refundId;
+        let sslcommerzRefundSucceeded = false;
+
+        try {
+          refundResponse = await processSslcommerzRefund(payment, payment.price, refundRequest.reason);
+          refundId = refundResponse?.refund_ref_id || `SSLC-REF-${Date.now()}`;
+          sslcommerzRefundSucceeded = true;
+        } catch (refundErr) {
+          refundId = `MANUAL-REF-${Date.now()}`;
+          console.error('SSLCommerz refund failed, falling back to manual record:', refundErr.message);
+        }
+
+        
+        await paymentCollection.updateOne(
+          { _id: payment._id },
+          {
+            $set: {
+              status: 'refunded',
+              refundId,
+              sslcommerzRefundSucceeded,
+              sslcommerzRefundRaw: refundResponse || null,
+              refundedAt: new Date()
+            }
+          }
+        );
+
+        await refundRequestsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: 'approved', updatedAt: new Date() } }
+        );
+
+        const classIds = Array.isArray(payment.items) && payment.items.length > 0
+          ? payment.items.map(i => (i.classId || i._id)?.toString()).filter(Boolean)
+          : (payment.classId ? [payment.classId.toString()] : []);
+
+        if (classIds.length > 0) {
+          await enrollmentCollection.deleteMany({
+            userEmail: payment.userEmail,
+            classId: { $in: classIds }
+          });
+
+          for (const cid of classIds) {
+            if (ObjectId.isValid(cid)) {
+              await classCollection.updateOne(
+                { _id: new ObjectId(cid), totalEnrollment: { $gt: 0 } },
+                { $inc: { totalEnrollment: -1 } }
+              );
+            }
+          }
+        }
+
+        res.send({
+          success: true,
+          message: sslcommerzRefundSucceeded
+            ? 'Refund approved and processed automatically via SSLCommerz. Enrollment revoked.'
+            : 'Refund approved and recorded, but automated processing failed — please refund manually via the SSLCommerz merchant panel.',
+          refundId,
+          sslcommerzRefundSucceeded
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, message: error.message });
       }
-    }
-
-    res.send({
-      success: true,
-      message: sslcommerzRefundSucceeded
-        ? 'Refund approved and processed automatically via SSLCommerz. Enrollment revoked.'
-        : 'Refund approved and recorded, but automated processing failed — please refund manually via the SSLCommerz merchant panel.',
-      refundId,
-      sslcommerzRefundSucceeded
     });
-  } catch (error) {
-    res.status(500).send({ success: false, message: error.message });
-  }
-});
-
-    // etao change krsi last time
-    // app.get('/enrolled-classes', verifyToken, async (req, res) => {
-    //   try {
-    //     const userEmail = req.decoded?.email || req.user?.email;
-    //     if (!userEmail) {
-    //       return res.status(401).send({ message: 'Unauthorized access' });
-    //     }
-
-    //     // 1. Fetch payments for this user
-    //     const payments = await paymentCollection
-    //       .find({
-    //         $or: [
-    //           { userEmail: userEmail },
-    //           { email: userEmail },
-    //           { studentEmail: userEmail }
-    //         ]
-    //       })
-    //       .sort({ paidAt: -1, _id: -1 })
-    //       .toArray();
-
-    //     if (!payments || payments.length === 0) {
-    //       return res.send([]);
-    //     }
-
-    //     // 2. Extract class IDs from payment items
-    //     const classIds = [];
-    //     payments.forEach(payment => {
-    //       if (Array.isArray(payment.items) && payment.items.length > 0) {
-    //         payment.items.forEach(item => {
-    //           const targetId = item.classId || item._id || item.id || item.courseId || payment.classId;
-    //           if (targetId) classIds.push(targetId.toString());
-    //         });
-    //       } else if (payment.classId) {
-    //         classIds.push(payment.classId.toString());
-    //       }
-    //     });
-
-    //     const uniqueClassIds = [...new Set(classIds)];
-    //     const validObjectIds = uniqueClassIds
-    //       .filter(id => id && ObjectId.isValid(id))
-    //       .map(id => new ObjectId(id));
-
-    //     // 3. Fetch matching classes
-    //     let classes = [];
-    //     if (validObjectIds.length > 0 || uniqueClassIds.length > 0) {
-    //       classes = await classCollection
-    //         .find({
-    //           $or: [
-    //             { _id: { $in: validObjectIds } },
-    //             { _id: { $in: uniqueClassIds } }
-    //           ]
-    //         })
-    //         .toArray();
-    //     }
-
-    //     const classMap = {};
-    //     classes.forEach(cls => {
-    //       if (cls && cls._id) {
-    //         classMap[cls._id.toString()] = cls;
-    //       }
-    //     });
-
-    //     // 4. Fetch refund requests safely
-    //     let refundRequests = [];
-    //     try {
-    //       refundRequests = await refundCollection
-    //         .find({
-    //           $or: [
-    //             { userEmail: userEmail },
-    //             { email: userEmail },
-    //             { studentEmail: userEmail }
-    //           ]
-    //         })
-    //         .toArray();
-    //     } catch (e) {
-    //       refundRequests = [];
-    //     }
-
-    //     const refundMap = {};
-    //     refundRequests.forEach(ref => {
-    //       if (ref && ref.classId) {
-    //         refundMap[ref.classId.toString()] = ref.status;
-    //       }
-    //     });
-
-    //     // 5. Fetch lesson progress records for this user (from progressCollection)
-    //     let userProgressRecords = [];
-    //     try {
-    //       userProgressRecords = await progressCollection
-    //         .find({ userEmail })
-    //         .toArray();
-    //     } catch (e) {
-    //       userProgressRecords = [];
-    //     }
-
-    //     const progressMap = {};
-    //     userProgressRecords.forEach(rec => {
-    //       if (rec && rec.classId) {
-    //         progressMap[rec.classId.toString()] = rec.completedLessons || [];
-    //       }
-    //     });
-
-    //     // 6. Build enrollment list with real dynamic lesson progress calculation
-    //     const enrolledCourses = payments.flatMap(payment => {
-    //       const items = Array.isArray(payment.items) && payment.items.length > 0
-    //         ? payment.items
-    //         : [payment];
-
-    //       return items.map(item => {
-    //         const cId = (item.classId || item._id || item.id || item.courseId || payment.classId)?.toString();
-    //         const courseData = (cId ? classMap[cId] : null) || {};
-
-    //         // Calculate total lessons from nested modules structure
-    //         let totalLessonsCount = 0;
-    //         if (Array.isArray(courseData.modules)) {
-    //           courseData.modules.forEach(mod => {
-    //             if (Array.isArray(mod.lessons)) {
-    //               totalLessonsCount += mod.lessons.length;
-    //             }
-    //           });
-    //         }
-    //         if (totalLessonsCount === 0) {
-    //           totalLessonsCount = courseData.totalLessons || 1;
-    //         }
-
-    //         const completedLessons = (cId && progressMap[cId]) ? progressMap[cId] : [];
-    //         const completedCount = completedLessons.length;
-    //         const progressPercent = Math.min(100, Math.round((completedCount / totalLessonsCount) * 100));
-
-    //         return {
-    //           enrollmentId: payment._id,
-    //           transactionId: payment.transactionId || 'N/A',
-    //           classId: cId || payment._id.toString(),
-    //           title: courseData.title || courseData.className || item.title || item.name || 'Enrolled Course',
-    //           image: courseData.image || courseData.bannerImage || courseData.coverImage || item.image || '',
-    //           category: courseData.category || item.category || 'General',
-    //           instructorName: courseData.instructorName || courseData.teacherName || courseData.name || item.instructorName || 'Instructor',
-    //           instructorEmail: courseData.instructorEmail || courseData.teacherEmail || courseData.email || item.instructorEmail || '',
-    //           pricePaid: item.price || payment.price || 0,
-    //           paymentStatus: payment.status || 'completed',
-    //           refundStatus: (cId && refundMap[cId]) || (payment.status === 'refunded' ? 'approved' : null),
-    //           enrolledAt: payment.paidAt || payment.createdAt || new Date(),
-    //           totalLessons: totalLessonsCount,
-    //           completedLessons: completedLessons,
-    //           completedCount: completedCount,
-    //           progressPercent: progressPercent,
-    //         };
-    //       });
-    //     });
-
-    //     res.send(enrolledCourses);
-    //   } catch (error) {
-    //     console.error('Error fetching enrolled classes:', error);
-    //     res.status(500).send({ message: 'Failed to retrieve enrolled classes', error: error.message });
-    //   }
-    // });
 
     app.get('/enrolled-classes', verifyToken, async (req, res) => {
       try {
@@ -3979,8 +2238,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.status(401).send({ message: 'Unauthorized access' });
         }
 
-        // 1. Fetch payments for this user — EXCLUDE refunded payments so refunded courses
-        // don't count as "enrolled" anywhere in the application
         const payments = await paymentCollection
           .find({
             status: { $ne: 'refunded' },
@@ -3997,7 +2254,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.send([]);
         }
 
-        // 2. Extract class IDs from payment items
         const classIds = [];
         payments.forEach(payment => {
           if (Array.isArray(payment.items) && payment.items.length > 0) {
@@ -4015,7 +2271,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           .filter(id => id && ObjectId.isValid(id))
           .map(id => new ObjectId(id));
 
-        // 3. Fetch matching classes
         let classes = [];
         if (validObjectIds.length > 0 || uniqueClassIds.length > 0) {
           classes = await classCollection
@@ -4035,7 +2290,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           }
         });
 
-        // 4. Fetch lesson progress records for this user (from progressCollection)
         let userProgressRecords = [];
         try {
           userProgressRecords = await progressCollection
@@ -4052,7 +2306,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           }
         });
 
-        // 5. Build enrollment list with real dynamic lesson progress calculation
         const enrolledCourses = payments.flatMap(payment => {
           const items = Array.isArray(payment.items) && payment.items.length > 0
             ? payment.items
@@ -4062,7 +2315,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
             const cId = (item.classId || item._id || item.id || item.courseId || payment.classId)?.toString();
             const courseData = (cId ? classMap[cId] : null) || {};
 
-            // Calculate total lessons from nested modules structure
             let totalLessonsCount = 0;
             if (Array.isArray(courseData.modules)) {
               courseData.modules.forEach(mod => {
@@ -4118,7 +2370,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.status(400).send({ message: 'Missing required parameters (classId, lessonId)' });
         }
 
-        // Add lessonId to completedLessons array uniquely using Native MongoDB Driver
         const result = await progressCollection.updateOne(
           { userEmail: userEmail, classId: classId.toString() },
           {
@@ -4136,7 +2387,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // GET: Single enrolled class with lessons, for the course player page
     app.get('/enrolled-classes/:id', verifyToken, async (req, res) => {
       try {
         const userEmail = req.decoded?.email;
@@ -4189,10 +2439,8 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
         });
         const completedLessons = progressRecord?.completedLessons || [];
 
-        // NEW: assignments for this class
         const assignments = await assignmentsCollection.find({ classId: classId.toString() }).toArray();
 
-        // NEW: this student's own submissions for those assignments
         const mySubmissions = await submissionsCollection
           .find({ classId: classId.toString(), userEmail })
           .toArray();
@@ -4231,43 +2479,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // POST: etao last a cmnt krslm
-    // app.post('/request-refund', verifyToken, async (req, res) => {
-    //   try {
-    //     const { classId, transactionId, reason, detail, amount } = req.body;
-    //     const userEmail = req.user?.email;
-    //     const userName = req.user?.displayName || 'Student';
-
-    //     if (!classId || !reason) {
-    //       return res.status(400).send({ message: 'Class ID and reason are required' });
-    //     }
-
-    //     // Prevent duplicate active requests
-    //     const existing = await refundCollection.findOne({ classId, userEmail, status: 'pending' });
-    //     if (existing) {
-    //       return res.status(400).send({ message: 'A refund request for this course is already pending.' });
-    //     }
-
-    //     const refundDoc = {
-    //       classId,
-    //       transactionId,
-    //       userEmail,
-    //       userName,
-    //       reason,
-    //       detail: detail || '',
-    //       amount: Number(amount || 0),
-    //       status: 'pending',
-    //       requestedAt: new Date()
-    //     };
-
-    //     const result = await refundCollection.insertOne(refundDoc);
-    //     res.send({ success: true, insertedId: result.insertedId, message: 'Refund request submitted successfully' });
-    //   } catch (error) {
-    //     console.error('Error requesting refund:', error);
-    //     res.status(500).send({ message: 'Failed to submit refund request' });
-    //   }
-    // });
-
     app.post('/newsletter/subscribe', async (req, res) => {
       try {
         const { email } = req.body;
@@ -4294,7 +2505,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // GET: Fetch all newsletter subscribers (Admin only)
     app.get('/newsletter/subscribers', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await newsletterCollection
@@ -4308,7 +2518,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // GET: List students enrolled in a specific classes
+  
     app.get('/classes/:id/students', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const classId = req.params.id;
@@ -4483,6 +2693,8 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
+  // certificate
+
     const CERTIFICATE_PASS_THRESHOLD = 80;
 
     app.get('/certificate/status/:classId', verifyToken, async (req, res) => {
@@ -4503,7 +2715,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.status(403).send({ message: 'You are not enrolled in this class' });
         }
 
-        // NEW: fetch class + user info so the certificate has real data to render
         const classIdConditions = [{ _id: classId }];
         if (ObjectId.isValid(classId)) classIdConditions.push({ _id: new ObjectId(classId) });
         const classData = await classCollection.findOne({ $or: classIdConditions });
@@ -4555,7 +2766,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           passedAssignments: passedCount,
           threshold: CERTIFICATE_PASS_THRESHOLD,
           breakdown,
-          // NEW: fields the certificate template needs
           courseTitle: classData?.title || 'Course',
           studentName: userDoc?.name || 'Student',
           instructorName: classData?.teacherName || classData?.name || 'Instructor',
@@ -4567,7 +2777,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // Generate a semantic embedding vector for a course, using its meaningful text content
+    
     async function generateCourseEmbedding(course) {
       try {
         const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
@@ -4583,14 +2793,13 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
         if (!textToEmbed.trim()) return null;
 
         const result = await model.embedContent(textToEmbed);
-        return result.embedding.values; // array of ~768 numbers
+        return result.embedding.values; 
       } catch (error) {
         // console.error('Embedding generation failed:', error.message);
-        return null; // fail gracefully — course still saves, just without recommendations
+        return null; 
       }
     }
 
-    // Cosine similarity: measures how close two vectors point in the same direction (1 = identical, 0 = unrelated)
     function cosineSimilarity(vecA, vecB) {
       if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
 
@@ -4605,7 +2814,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
     }
 
 
-    // POST: Bulk certificate eligibility check for multiple classes at once
+    
     app.post('/certificate/status/bulk', verifyToken, async (req, res) => {
       try {
         const { classIds } = req.body;
@@ -4617,7 +2826,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
 
         const uniqueClassIds = [...new Set(classIds.map(String))];
 
-        // 1. Verify enrollment for all requested classes in one query
+        
         const payments = await paymentCollection.find({
           userEmail,
           status: { $ne: 'refunded' },
@@ -4640,7 +2849,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           }
         });
 
-        // 2. Fetch class titles for enrolled classes
+        
         const validObjectIds = uniqueClassIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
         const classDocs = await classCollection.find({
           $or: [
@@ -4651,7 +2860,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
         const classDocMap = {};
         classDocs.forEach(c => { classDocMap[c._id.toString()] = c; });
 
-        // 3. Fetch all assignments for these classes in one query
+        
         const allAssignments = await assignmentsCollection.find({
           classId: { $in: uniqueClassIds }
         }).toArray();
@@ -4662,7 +2871,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           assignmentsByClass[a.classId].push(a);
         });
 
-        // 4. Fetch all of this student's submissions for these classes in one query
+        
         const mySubmissions = await submissionsCollection.find({
           classId: { $in: uniqueClassIds },
           userEmail
@@ -4671,11 +2880,11 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
         const submissionByAssignment = {};
         mySubmissions.forEach(s => { submissionByAssignment[s.assignmentId] = s; });
 
-        // 5. Build per-class result
+      
         const result = {};
         for (const cId of uniqueClassIds) {
           if (!enrolledClassIds.has(cId)) {
-            continue; // skip classes the student isn't enrolled in
+            continue; 
           }
 
           const classAssignments = assignmentsByClass[cId] || [];
@@ -4708,12 +2917,12 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
 
         res.send(result);
       } catch (error) {
-        // console.error('Error checking bulk certificate status:', error);
+        // console.error('Error certificate status:', error);
         res.status(500).send({ message: 'Failed to check certificate status', error: error.message });
       }
     });
 
-    // GET: All submissions for a class, grouped by assignment (Teacher/Admin, ownership-checked)
+    
     app.get('/submissions/class/:classId', verifyToken, verifyTeacherOrAdmin, async (req, res) => {
       try {
         const { classId } = req.params;
@@ -4754,7 +2963,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           submissions: enriched
         });
       } catch (error) {
-        // console.error('Error fetching class submissions:', error);
+        // console.error('Error fetching class submissions', error);
         res.status(500).send({ message: 'Failed to fetch submissions', error: error.message });
       }
     });
@@ -4771,8 +2980,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.status(404).send({ message: 'Course not found' });
         }
 
-        // Fallback: if this course has no embedding yet (e.g. created before this feature),
-        // just return other accepted courses in the same category
+      
         if (!targetCourse.embedding) {
           const fallback = await classCollection
             .find({ status: 'accepted', category: targetCourse.category, _id: { $ne: targetCourse._id } })
@@ -4801,19 +3009,19 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // NEW: Personalized recommendations based on a student's enrollment history
+    
     app.get('/recommendations/personalized', verifyToken, async (req, res) => {
       try {
         const userEmail = req.decoded.email;
 
-        // 1. Get this student's enrolled classIds
+        
         const enrollments = await enrollmentCollection
           .find({ userEmail })
           .toArray();
 
         const enrolledClassIds = [...new Set(enrollments.map(e => e.classId?.toString()).filter(Boolean))];
 
-        // Cold start: no enrollment history yet -> fall back to trending courses
+        
         if (enrolledClassIds.length === 0) {
           const trending = await classCollection
             .find({ status: 'accepted' })
@@ -4823,7 +3031,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.send(trending);
         }
 
-        // 2. Fetch embeddings for the enrolled courses
+        
         const idConditions = enrolledClassIds.map(id => {
           const conditions = [{ _id: id }];
           if (ObjectId.isValid(id)) conditions.push({ _id: new ObjectId(id) });
@@ -4845,7 +3053,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
           return res.send(trending);
         }
 
-        // 3. Average the embeddings into one "interest vector"
+        
         const dim = vectors[0].length;
         const sum = new Array(dim).fill(0);
         vectors.forEach(vec => {
@@ -4853,7 +3061,7 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
         });
         const interestVector = sum.map(v => v / vectors.length);
 
-        // 4. Compare against all other accepted courses
+        
         const candidates = await classCollection
           .find({
             status: 'accepted',
@@ -4875,7 +3083,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
       }
     });
 
-    // GET: Featured instructors with live course/enrollment stats, for the About page
     app.get('/instructors/featured', async (req, res) => {
       try {
         const LIMIT = 6;
@@ -4925,7 +3132,6 @@ app.get('/refund-requests', verifyToken, verifyAdmin, async (req, res) => {
 
 run().catch(console.dir);
 
-// Root Health Check Route
 app.get('/', (req, res) => {
   res.send('LMS System Running');
 });
